@@ -1,0 +1,16 @@
+{
+    "name": "sprite-widget",
+    "version": "1.0.0",
+    "description": "A cute sprite widget that talks to you",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "install-and-run": "npm install && npm start"
+    },
+    "devDependencies": {
+        "electron": "^28.0.0"
+    },
+    "dependencies": {
+        "dotenv": "^16.4.1"
+    }
+}

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Productivity Sprite</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-transparent">
+    <div id="widget" class="fixed top-2 right-2 flex flex-col items-center select-none" tabindex="0"
+        aria-label="Productivity Sprite" role="region">
+        <div class="relative">
+            <img id="sprite-happy"
+                src="https://em-content.zobj.net/source/microsoft-teams/363/smiling-face-with-smiling-eyes_1f60a.png"
+                alt="Happy Sprite" class="w-16 h-16 mb-2" />
+            <img id="sprite-sad" src="https://em-content.zobj.net/source/microsoft-teams/363/worried-face_1f61f.png"
+                alt="Sad Sprite" class="w-16 h-16 mb-2 hidden" />
+        </div>
+        <div id="speech-bubble"
+            class="bg-white bg-opacity-90 text-gray-800 rounded-lg px-4 py-2 shadow text-sm mb-2 min-w-[120px] text-center border border-gray-200"
+            aria-live="polite"></div>
+        <button id="start-monitoring"
+            class="mt-1 px-3 py-1 rounded bg-green-500 text-white text-xs font-semibold shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400"
+            aria-label="Start productivity monitoring">Start Monitoring</button>
+    </div>
+    <script src="renderer.js"></script>
+</body>
+
+</html>

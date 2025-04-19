@@ -4,12 +4,15 @@ const {
 	screen,
 	desktopCapturer,
 	ipcMain,
+	globalShortcut,
 } = require("electron")
 const path = require("path")
 
+let mainWindow = null
+
 const createWindow = () => {
 	const { width } = screen.getPrimaryDisplay().workAreaSize
-	const win = new BrowserWindow({
+	mainWindow = new BrowserWindow({
 		width: 300,
 		height: 300,
 		x: width - 320,
@@ -29,10 +32,10 @@ const createWindow = () => {
 	})
 
 	// Enable dev tools in development
-	win.webContents.openDevTools({ mode: "detach" })
+	mainWindow.webContents.openDevTools({ mode: "detach" })
 
-	win.loadFile("index.html")
-	win.setSkipTaskbar(true)
+	mainWindow.loadFile("index.html")
+	mainWindow.setSkipTaskbar(true)
 }
 
 // Handle screen capture request
@@ -51,9 +54,24 @@ ipcMain.handle("CAPTURE_SCREEN", async () => {
 
 app.whenReady().then(() => {
 	createWindow()
+
+	// Register the keyboard shortcut
+	globalShortcut.register('CommandOrControl+Shift+H', () => {
+		if (mainWindow.isVisible()) {
+			mainWindow.hide()
+		} else {
+			mainWindow.show()
+		}
+	})
+
 	app.on("activate", () => {
 		if (BrowserWindow.getAllWindows().length === 0) createWindow()
 	})
+})
+
+// Clean up shortcuts when app is quitting
+app.on('will-quit', () => {
+	globalShortcut.unregisterAll()
 })
 
 app.on("window-all-closed", () => {

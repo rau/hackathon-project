@@ -18,6 +18,7 @@ const statsStatus = document.getElementById("stats-status")
 // Chat input and button
 const chatInput = document.getElementById("chat-input")
 const chatButton = document.getElementById("chat-button")
+const taskDescriptionInput = document.getElementById("task-description")
 
 // State variables
 let currentMode = "productivity" // 'productivity' or 'relax'
@@ -68,9 +69,14 @@ const updateButtonState = (monitoring) => {
 	startMonitoringBtn.classList.toggle("bg-green-500", !monitoring)
 }
 
-const analyzeScreenshot = async (screenshot) => {
+const analyzeScreenshot = async (screenshot, taskDescription) => {
 	try {
 		console.log("Analyzing screenshot with Claude...")
+		console.log("Task Description:", taskDescription)
+
+		// Construct the prompt including the task description
+		let promptText = `The user is currently working on: '${taskDescription || "No specific task provided."}'\n\nHere's a screenshot of the computer screen. Does this screen content seem relevant to the stated task, or is it likely a distraction (like social media, games, unrelated browsing)? Please respond with ONLY 'yes' (relevant) or 'no' (distraction).`
+
 		const response = await fetch("https://api.anthropic.com/v1/messages", {
 			method: "POST",
 			headers: {
@@ -80,14 +86,14 @@ const analyzeScreenshot = async (screenshot) => {
 			},
 			body: JSON.stringify({
 				model: "claude-3-opus-20240229",
-				max_tokens: 1024,
+				max_tokens: 10,
 				messages: [
 					{
 						role: "user",
 						content: [
 							{
 								type: "text",
-								text: "Here's a screenshot of my computer screen. Is this productive work? Please respond with ONLY 'yes' or 'no'. Consider coding, document writing, and professional tools as productive. Consider social media, gaming, and entertainment as unproductive.",
+								text: promptText, // Use the constructed prompt
 							},
 							{
 								type: "image",
@@ -105,7 +111,9 @@ const analyzeScreenshot = async (screenshot) => {
 
 		const data = await response.json()
 		console.log("Claude response:", data)
-		return data.content[0].text.toLowerCase().includes("yes")
+		// Improve robustness of checking response
+		const resultText = data?.content?.[0]?.text?.toLowerCase()?.trim() || "";
+		return resultText === 'yes'
 	} catch (error) {
 		console.error("Error analyzing screenshot:", error)
 		throw error
@@ -121,22 +129,44 @@ const checkProductivity = async () => {
 		return
 	}
 
-	console.log("Starting productivity check...")
+	// Get the task description from the input field
+	const taskDescription = taskDescriptionInput.value.trim()
+	console.log("Starting productivity check with task:", taskDescription)
+
 	try {
 		const screenshot = await window.electron.capture.getScreenshot()
 		console.log("Screenshot captured")
 
-		const isProductive = await analyzeScreenshot(screenshot)
+		// Pass task description to analyzeScreenshot
+		const isProductive = await analyzeScreenshot(screenshot, taskDescription)
 		console.log("Analysis result:", isProductive)
 
 		setSpriteEmotion(isProductive)
-		const message = getRandomMessage(
-			isProductive ? productiveMessages : unproductiveMessages
-		)
+
+		// Determine message based on productivity AND mode
+		let message = ""
+		if (currentMode === "productivity") {
+			if (isProductive) {
+				message = getRandomMessage(productiveMessages)
+			} else {
+				message = getRandomMessage(unproductiveMessages)
+				handleAnalyzeScreenResult(true) // Increment distraction count
+			}
+		} else {
+			// In Relax mode, maybe just acknowledge the check or say something chill
+			message = "Just checking in... Relax! 🧘"
+			// Optionally, still track 'distractions' differently or not at all in relax mode
+		}
+
 		speechBubble.textContent = message
 		console.log("Updated UI with message:", message)
 
-		if ("speechSynthesis" in window) {
+		// Speak the message only if not dead and not in relax mode (or customize as needed)
+		if (
+			"speechSynthesis" in window &&
+			spriteState !== "dead" &&
+			currentMode === "productivity"
+		) {
 			const utter = new window.SpeechSynthesisUtterance(message)
 			window.speechSynthesis.cancel()
 			window.speechSynthesis.speak(utter)
@@ -144,7 +174,7 @@ const checkProductivity = async () => {
 	} catch (error) {
 		console.error("Error during productivity check:", error)
 		speechBubble.textContent = "Oops! Something went wrong! 😅"
-		setSpriteEmotion(true)
+		setSpriteEmotion(true) // Default to happy on error
 	}
 }
 

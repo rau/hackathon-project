@@ -127,7 +127,7 @@ const startMonitoring = () => {
 	isMonitoring = true
 	updateButtonState(true)
 	checkProductivity() // Initial check
-	monitoringInterval = setInterval(checkProductivity, 5000)
+	monitoringInterval = setInterval(checkProductivity, 30000)
 	speechBubble.textContent =
 		"Monitoring started! I'll help you stay productive! 🎯"
 }

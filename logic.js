@@ -1,4 +1,6 @@
 const { Anthropic } = require("@anthropic-ai/sdk") // Use require for Node.js modules
+const imghash = require('imghash');
+const { createCanvas, Image } = require('canvas');
 
 // --- State ---
 let state = {
@@ -15,11 +17,15 @@ let state = {
 	monitoringInterval: null,
 	timerPausedTimeout: null, // <-- Add handle for paused timer
 	captureScreenshotFn: null, // <-- Store the capture function
+	lastScreenshotHash: null, // For detecting window/tab changes
+	windowChangeDetection: false, // Flag to enable/disable window change detection
 }
 
 // --- Constants ---
 const DISTRACTION_LIMIT = 3
-const MONITORING_INTERVAL_MS = 15000 // Changed to 15 seconds
+const MONITORING_INTERVAL_MS = 30000 // 15 seconds
+const WINDOW_CHECK_INTERVAL_MS = 2000 // Increased to 8 seconds to reduce frequent checks
+const HASH_DISTANCE_THRESHOLD = 12; // Lower = more sensitive, higher = less sensitive
 
 const deadMessages = [
 	"Oh no... I didn't make it. 💀",
@@ -40,6 +46,38 @@ const _getSpriteMessage = () => {
 	return state.currentMode === "productivity"
 		? "Let's focus! ✨"
 		: "Time to relax! 🧘"
+}
+
+// Advanced perceptual hashing function for window changes
+// This extracts the top portion of the image and uses perceptual hashing
+const _generateScreenshotHash = async (base64Data) => {
+    if (!base64Data || base64Data.length < 1000) return null;
+    
+    try {
+        // Create a data URL from the base64 string
+        const dataUrl = `data:image/png;base64,${base64Data}`;
+        
+        // Create a buffer from the base64 string for imghash
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        // Simply use imghash directly on the buffer - it's more reliable
+        // with smaller hash size (8 bits) for less sensitivity to minor changes
+        const hash = await imghash.hash(buffer, 8);
+        console.log('Generated perceptual hash:', hash);
+        
+        return hash;
+    } catch (error) {
+        console.error('Error in perceptual hashing:', error);
+        
+        // Fallback to simple hash if perceptual hashing fails
+        let hash = 0;
+        const sampleString = base64Data.substring(0, 500);
+        for (let i = 0; i < sampleString.length; i += 10) {
+            hash = ((hash << 5) - hash) + sampleString.charCodeAt(i);
+            hash |= 0;
+        }
+        return hash.toString();
+    }
 }
 
 const _updateContextHistory = (description) => {
@@ -332,10 +370,16 @@ const _scheduleNextCheck = (delayMs) => {
 	}, delayMs)
 }
 
-const initialize = (uiUpdateCallback, apiKey) => {
+const initialize = (uiUpdateCallback, apiKey, captureFn) => {
 	console.log("Initializing logic module...")
 	state.uiUpdateCallback = uiUpdateCallback
 	state.apiKey = apiKey
+	
+	// Store screenshot capture function if provided
+	if (typeof captureFn === 'function') {
+		state.captureScreenshotFn = captureFn;
+	}
+	
 	if (apiKey) {
 		try {
 			// Ensure Anthropic SDK is compatible with Node.js environment
@@ -348,6 +392,12 @@ const initialize = (uiUpdateCallback, apiKey) => {
 	} else {
 		console.warn("API Key not provided during initialization.")
 	}
+	
+	// Automatically start window change detection if capture function is available
+	if (state.captureScreenshotFn && !state.windowChangeDetection) {
+		startWindowChangeDetection(state.captureScreenshotFn);
+	}
+	
 	// Send initial state to UI (including statsVisible)
 	state.uiUpdateCallback(
 		getState(),
@@ -393,6 +443,90 @@ const toggleStatsVisibility = () => {
 	state.uiUpdateCallback(getState(), null, false)
 }
 
+// Helper function to calculate Hamming distance between two hex strings (perceptual hashes)
+const _calculateHashDistance = (hash1, hash2) => {
+    if (!hash1 || !hash2 || hash1.length !== hash2.length) {
+        return Number.MAX_SAFE_INTEGER; // Return max distance if hashes can't be compared
+    }
+    
+    // Convert hex strings to binary
+    const bin1 = Array.from(hash1).map(h => parseInt(h, 16).toString(2).padStart(4, '0')).join('');
+    const bin2 = Array.from(hash2).map(h => parseInt(h, 16).toString(2).padStart(4, '0')).join('');
+    
+    // Count bit differences (Hamming distance)
+    let distance = 0;
+    for (let i = 0; i < bin1.length; i++) {
+        if (bin1[i] !== bin2[i]) {
+            distance++;
+        }
+    }
+    
+    return distance;
+};
+
+// Function to detect window/tab changes and take screenshots
+const startWindowChangeDetection = (captureFn) => {
+	if (state.windowChangeDetection || !captureFn) {
+		console.log("Window change detection already running or missing capture function")
+		return
+	}
+	
+	console.log("Starting window change detection...")
+	state.captureScreenshotFn = captureFn // Store for later use
+	state.windowChangeDetection = true
+	
+	// For perceptual hashing of window content	
+	// Separate interval for window change detection
+	const windowChangeInterval = setInterval(async () => {
+		if (!state.windowChangeDetection) {
+			clearInterval(windowChangeInterval)
+			return
+		}
+		
+		try {
+			const screenshot = await captureFn()
+			if (screenshot && screenshot.startsWith("data:image/png;base64,")) {
+				const base64Data = screenshot.split(",")[1]
+				const currentHash = await _generateScreenshotHash(base64Data)
+				
+				// Check if screen has changed significantly using hamming distance comparison
+				if (currentHash && state.lastScreenshotHash) {
+				    const hashDistance = _calculateHashDistance(currentHash, state.lastScreenshotHash);
+				    console.log(`Hash distance: ${hashDistance}, threshold: ${HASH_DISTANCE_THRESHOLD}`);
+				    
+				    // Only consider it a change if the distance is above threshold
+				    if (hashDistance > HASH_DISTANCE_THRESHOLD) {
+					    console.log(`Window/tab change detected! (hash distance: ${hashDistance})`)
+					    state.lastScreenshotHash = currentHash
+					    
+					    // If we're monitoring, analyze the screenshot
+					    if (state.isMonitoring && state.currentMode === "productivity" && state.spriteState !== "dead") {
+						    analyzeScreenAndUpdate(base64Data)
+					    } else {
+						    console.log("Window change detected, but not analyzing (monitoring off or incorrect mode)")
+					    }
+				    } else {
+				        console.log("Minor screen change - below threshold")
+				    }
+				} else if (currentHash) {
+				    // First run or hash was reset
+				    console.log("Setting initial screenshot hash")
+				    state.lastScreenshotHash = currentHash
+				}
+			}
+		} catch (error) {
+			console.error("Error during window change detection:", error)
+		}
+	}, WINDOW_CHECK_INTERVAL_MS)
+	
+	return windowChangeInterval
+}
+
+const stopWindowChangeDetection = () => {
+	console.log("Stopping window change detection")
+	state.windowChangeDetection = false
+}
+
 const startProductivityCheck = (captureFn) => {
 	if (
 		state.currentMode !== "productivity" ||
@@ -427,6 +561,12 @@ const startProductivityCheck = (captureFn) => {
 
 	console.log("Starting productivity monitoring...")
 	state.isMonitoring = true
+	state.captureScreenshotFn = captureFn // Store for future use
+	
+	// Also start window change detection if not already running
+	if (!state.windowChangeDetection) {
+		startWindowChangeDetection(captureFn)
+	}
 
 	const check = async () => {
 		try {
@@ -434,6 +574,10 @@ const startProductivityCheck = (captureFn) => {
 			const screenshot = await captureFn() // Call the function passed from renderer
 			if (screenshot && screenshot.startsWith("data:image/png;base64,")) {
 				const base64Data = screenshot.split(",")[1]
+				
+				// Store hash for window change detection
+				state.lastScreenshotHash = _generateScreenshotHash(base64Data)
+				
 				analyzeScreenAndUpdate(base64Data) // Analyze and update state
 			} else {
 				console.error("Invalid screenshot format received.")
@@ -463,6 +607,14 @@ const stopProductivityCheck = () => {
 		clearInterval(state.monitoringInterval)
 		state.monitoringInterval = null
 	}
+	
+	// Don't stop window change detection when stopping productivity check
+	// This allows window change detection to continue working independently
+	// If you want to also stop window change detection, uncomment:
+	// if (state.windowChangeDetection) {
+	//     stopWindowChangeDetection();
+	// }
+	
 	state.uiUpdateCallback(getState(), "Monitoring stopped.", true)
 }
 
@@ -542,5 +694,7 @@ module.exports = {
 	toggleStatsVisibility,
 	startProductivityCheck,
 	stopProductivityCheck,
-	getHelpOrChat, // <-- Export new interaction function
+	getHelpOrChat, // <-- Export interaction function
+	startWindowChangeDetection, // <-- Export window change detection functions
+	stopWindowChangeDetection,
 }

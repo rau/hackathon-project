@@ -6,24 +6,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Productivity Sprite</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Import Google Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        /* Apply font globally within the widget or specifically */
+        .font-retro {
+            font-family: 'Press Start 2P', cursive;
+        }
+        /* Ensure transparent background for draggable area */
+        body {
+             background-color: rgba(0,0,0,0); /* Make sure body is transparent */
+        }
+        /* Style for the widget container */
+        #widget {
+             -webkit-app-region: drag; /* Allows dragging the widget */
+             user-select: none; /* Prevent text selection */
+        }
+        /* Make buttons clickable within draggable region */
+        button,
+        input /* Add input to no-drag */ {
+             -webkit-app-region: no-drag;
+        }
+        /* Explicitly make speech bubble and chat input non-draggable */
+        #speech-bubble,
+        #chat-input {
+            -webkit-app-region: no-drag;
+        }
+        /* Optional: Smoother font rendering */
+        body {
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* Style scrollbar for speech bubble */
+        #speech-bubble::-webkit-scrollbar {
+            width: 4px; /* Make scrollbar very thin */
+        }
+        #speech-bubble::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1); /* Semi-transparent track */
+            border-radius: 2px;
+        }
+        #speech-bubble::-webkit-scrollbar-thumb {
+            background-color: rgba(255, 255, 255, 0.4); /* Semi-transparent thumb */
+            border-radius: 2px;
+            border: 1px solid rgba(0, 0, 0, 0.2);
+        }
+         #speech-bubble::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(255, 255, 255, 0.6);
+        }
+    </style>
 </head>
 
-<body class="bg-transparent">
-    <div id="widget" class="fixed top-2 right-2 flex flex-col items-center select-none" tabindex="0"
-        aria-label="Productivity Sprite" role="region">
-        <div class="relative">
+<body class="bg-transparent overflow-hidden">
+    <!-- Main widget container -->
+    <div id="widget" class="font-retro fixed top-4 right-4 flex flex-col items-center select-none p-2 rounded-lg bg-gray-800 bg-opacity-30 hover:bg-opacity-50 transition-opacity duration-200"
+        tabindex="0" aria-label="Productivity Sprite" role="region">
+
+        <!-- Stats Toggle Button (Positioned Above Sprite) -->
+         <button id="stats-toggle-button"
+            class="absolute -top-2 left-1/2 transform -translate-x-1/2 translate-y-0 mb-2 bg-blue-600 hover:bg-blue-700 border-2 border-blue-800 text-white text-[8px] leading-none font-bold py-1 px-2 rounded shadow-md transition-colors">
+            STATS
+        </button>
+
+        <!-- Mode Toggle Button (Top Right Corner) -->
+        <button id="mode-toggle-button"
+                class="absolute top-1 right-1 w-5 h-5 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-sm shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-purple-400"
+                title="Switch Mode" aria-label="Switch Mode">
+            🧘
+        </button>
+
+        <!-- Stats Display (Positioned Above Sprite, below Stats button) -->
+        <div id="stats-display"
+            class="absolute top-0 left-0 right-0 mt-4 bg-black bg-opacity-70 text-white text-[7px] leading-tight p-1.5 rounded border border-gray-500 mb-1 z-10 hidden">
+            <p>MODE: <span id="stats-mode">PRODUCTIVITY</span></p>
+            <p>HITS: <span id="stats-distractions">0</span></p>
+            <p>STATUS: <span id="stats-status">ALIVE</span></p>
+        </div>
+
+        <!-- Sprite Area -->
+        <div class="relative w-16 h-16 mt-5 mb-2 z-0">
             <img id="sprite-happy"
                 src="https://em-content.zobj.net/source/microsoft-teams/363/smiling-face-with-smiling-eyes_1f60a.png"
-                alt="Happy Sprite" class="w-16 h-16 mb-2" />
+                alt="Happy Sprite" class="w-full h-full object-contain" />
             <img id="sprite-sad" src="https://em-content.zobj.net/source/microsoft-teams/363/worried-face_1f61f.png"
-                alt="Sad Sprite" class="w-16 h-16 mb-2 hidden" />
+                alt="Sad Sprite" class="w-full h-full object-contain hidden" />
+            <!-- Add dead sprite image if you have one -->
+             <!-- <img id="sprite-dead" src="dead-sprite.png" alt="Dead Sprite" class="w-full h-full object-contain hidden grayscale" /> -->
         </div>
+
+        <!-- Speech Bubble -->
         <div id="speech-bubble"
-            class="bg-white bg-opacity-90 text-gray-800 rounded-lg px-4 py-2 shadow text-sm mb-2 min-w-[120px] text-center border border-gray-200"
+            class="bg-white bg-opacity-95 text-black rounded-md px-2 py-1 shadow-lg text-[8px] leading-snug mb-2 min-w-[100px] max-w-[150px] text-center border-2 border-gray-400 
+                   max-h-[40px] overflow-y-auto" 
             aria-live="polite"></div>
+
+        <!-- Monitoring Button (Optional, if kept) -->
         <button id="start-monitoring"
-            class="mt-1 px-3 py-1 rounded bg-green-500 text-white text-xs font-semibold shadow hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-400"
-            aria-label="Start productivity monitoring">Start Monitoring</button>
+            class="mb-1 px-2 py-1 rounded bg-green-600 hover:bg-green-700 border-2 border-green-800 text-white text-[8px] leading-none font-semibold shadow-md transition-colors focus:outline-none focus:ring-2 focus:ring-green-400"
+            aria-label="Start/Stop productivity monitoring">START</button>
+
+        <!-- Interaction Area -->
+        <div class="mt-3 flex items-center space-x-1">
+            <input type="text" id="chat-input" placeholder="Ask me..." 
+                   class="flex-grow px-1.5 py-0.5 text-[8px] leading-none bg-gray-100 text-black border border-gray-400 rounded focus:outline-none focus:ring-1 focus:ring-blue-500" 
+                   aria-label="Chat input" />
+            <button id="chat-button" 
+                    class="px-1.5 py-0.5 rounded bg-yellow-500 hover:bg-yellow-600 border-2 border-yellow-700 text-black text-[8px] leading-none font-bold shadow-sm transition-colors focus:outline-none focus:ring-1 focus:ring-yellow-300"
+                    aria-label="Send chat message">&gt;</button>
+        </div>
+
     </div>
     <script src="renderer.js"></script>
 </body>

@@ -13,6 +13,15 @@ console.log("Preload script is running")
 console.log("CLAUDE_API_KEY exists:", !!process.env.CLAUDE_API_KEY)
 console.log("AppLogic loaded:", !!appLogic)
 
+// Theme handling - will be used to support light/dark mode
+const getSystemTheme = () => {
+    // Check if window.matchMedia is available (it should be in Electron)
+    if (window.matchMedia) {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    return 'light'; // Default to light if cannot detect
+}
+
 // Expose protected APIs to renderer
 contextBridge.exposeInMainWorld("electron", {
 	capture: {
@@ -39,5 +48,13 @@ contextBridge.exposeInMainWorld("electron", {
 		startProductivityCheck: appLogic.startProductivityCheck,
 		stopProductivityCheck: appLogic.stopProductivityCheck,
 		getHelpOrChat: appLogic.getHelpOrChat,
+		// New window change detection functions
+		startWindowChangeDetection: appLogic.startWindowChangeDetection,
+		stopWindowChangeDetection: appLogic.stopWindowChangeDetection,
 	},
+    // Theme related functionality
+    theme: {
+        getSystemTheme: getSystemTheme,
+        // Add more theme-related functions as needed
+    }
 })

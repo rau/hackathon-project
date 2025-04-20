@@ -52,6 +52,40 @@
             font-family: 'VT323', monospace;
         }
 
+        /* Claude theme */
+        .claude-theme {
+            --bg-gradient-from: rgba(246, 246, 246, 0.95);
+            --bg-gradient-to: rgba(235, 235, 235, 0.95);
+            --border-color: rgba(215, 215, 215, 0.7);
+            --speech-bubble-bg: rgba(255, 255, 255, 1);
+            --speech-bubble-border: rgba(215, 215, 215, 0.7);
+            --speech-bubble-text: #333333;
+            --button-bg: #DDD5CB;
+            --button-hover: #C7BFB6;
+            --button-border: #B8B2A7;
+            --button-text: #333333;
+            --input-bg: #FFFFFF;
+            --input-border: #D5D5D5;
+            --input-text: #333333;
+        }
+
+        /* Retro theme (default) */
+        .retro-theme {
+            --bg-gradient-from: rgba(79, 70, 229, 0.85);
+            --bg-gradient-to: rgba(124, 58, 237, 0.85);
+            --border-color: rgba(99, 102, 241, 0.5);
+            --speech-bubble-bg: rgba(255, 255, 255, 0.95);
+            --speech-bubble-border: rgba(129, 140, 248, 0.7);
+            --speech-bubble-text: #000000;
+            --button-bg: #4F46E5;
+            --button-hover: #4338CA;
+            --button-border: #4338CA;
+            --button-text: #FFFFFF;
+            --input-bg: #F0F4FF;
+            --input-border: #818CF8;
+            --input-text: #1E293B;
+        }
+
         /* Ensure transparent background for draggable area */
         body {
             background-color: rgba(0, 0, 0, 0);
@@ -104,7 +138,7 @@
             height: 0;
             border-left: 8px solid transparent;
             border-right: 8px solid transparent;
-            border-top: 8px solid rgba(255, 255, 255, 0.95);
+            border-top: 8px solid var(--speech-bubble-bg);
         }
 
         /* Button hover effects */
@@ -115,6 +149,7 @@
 
         .btn:hover {
             transform: translateY(-1px);
+            background-color: var(--button-hover) !important;
         }
 
         .btn:active {
@@ -150,18 +185,19 @@
 <body class="bg-transparent overflow-hidden">
     <!-- Main widget container -->
     <div id="widget"
-        class="font-retro fixed top-4 right-4 flex flex-col items-center select-none p-3 rounded-xl bg-gradient-to-br from-indigo-900/85 to-purple-900/85 border border-indigo-500/50 hover:border-indigo-400/70 transition-all duration-300"
+        class="font-retro fixed top-4 right-4 flex flex-col items-center select-none p-3 rounded-xl retro-theme bg-gradient-to-br border transition-all duration-300"
+        style="background-image: linear-gradient(to bottom right, var(--bg-gradient-from), var(--bg-gradient-to)); border-color: var(--border-color);"
         tabindex="0" aria-label="Productivity Sprite" role="region">
 
         <!-- Stats Toggle Button (Positioned Above Sprite) -->
         <button id="stats-toggle-button"
-            class="btn absolute -top-3 left-1/2 transform -translate-x-1/2 translate-y-0 mb-2 bg-primary hover:bg-primary-hover border-2 border-indigo-700 text-white text-[8px] leading-none font-bold py-1 px-3 rounded-lg shadow-lg transition-all pixel-border">
-            STATS
-        </button>
+            class="btn absolute -top-3 left-1/2 transform -translate-x-1/2 translate-y-0 mb-2 border-2 text-[8px] leading-none font-bold py-1 px-3 rounded-lg shadow-lg transition-all pixel-border"
+            style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);">STATS</button>
 
         <!-- Mode Toggle Button (Top Right Corner) -->
         <button id="mode-toggle-button"
-            class="btn absolute top-1 right-1 w-6 h-6 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 pixel-border"
+            class="btn absolute top-1 right-1 w-6 h-6 flex items-center justify-center text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 pixel-border"
+            style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);"
             title="Switch Mode" aria-label="Switch Mode">
             🧘
         </button>
@@ -169,7 +205,8 @@
         <!-- Personality Toggle Button (Top Left Corner) -->
         <div class="absolute top-1 left-1 z-20">
             <button id="persona-toggle-button"
-                class="btn w-6 h-6 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
+                class="btn w-6 h-6 flex items-center justify-center text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
+                style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);"
                 title="Change Personality" aria-label="Change Personality">
                 😀
             </button>
@@ -191,6 +228,30 @@
                     <button
                         class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
                         data-persona="oldMan">Old Man 👴</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme Toggle Button (Next to Personality) -->
+        <div class="absolute top-1 left-9 z-20">
+            <button id="theme-toggle-button"
+                class="btn w-6 h-6 flex items-center justify-center text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
+                style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);"
+                title="Change Theme" aria-label="Change Theme">
+                🎨
+            </button>
+
+            <!-- Theme Quick Selector (pops up when theme button is clicked) -->
+            <div id="theme-dropdown"
+                class="absolute left-0 top-7 bg-indigo-950/90 backdrop-blur-sm border border-indigo-500 rounded-md p-2 shadow-xl hidden">
+                <div class="text-indigo-300 text-[7px] font-bold mb-1.5">SELECT THEME:</div>
+                <div class="flex flex-col space-y-1">
+                    <button
+                        class="theme-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-theme="retro">Retro 🎮</button>
+                    <button
+                        class="theme-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-theme="claude">Claude 🔍</button>
                 </div>
             </div>
         </div>
@@ -227,6 +288,16 @@
                     </div>
                 </label>
             </div>
+
+            <!-- Theme Selector -->
+            <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-indigo-800/70">
+                <span class="text-indigo-300">THEME:</span>
+                <select id="theme-select"
+                    class="bg-indigo-900 text-[7px] text-yellow-300 border border-indigo-700 rounded px-1 w-24 py-0.5 -webkit-app-region: no-drag">
+                    <option value="retro">Retro</option>
+                    <option value="claude">Claude</option>
+                </select>
+            </div>
         </div>
 
         <!-- Sprite Area -->
@@ -236,26 +307,32 @@
         </div>
 
         <!-- Speech Bubble -->
-        <div id="speech-bubble" class="bg-white bg-opacity-95 text-black rounded-lg px-3 py-2 shadow-xl text-[9px] leading-snug mb-4 min-w-[110px] max-w-[160px] text-center border border-indigo-300 
-                   pixel-border" aria-live="polite"></div>
+        <div id="speech-bubble" class="rounded-lg px-3 py-2 shadow-xl text-[9px] leading-snug mb-4 min-w-[110px] max-w-[160px] text-center border
+                   pixel-border"
+            style="background-color: var(--speech-bubble-bg); color: var(--speech-bubble-text); border-color: var(--speech-bubble-border);"
+            aria-live="polite"></div>
 
         <!-- Task Description Input -->
         <input type="text" id="task-description" placeholder="What are you working on?"
-            class="w-full px-2 py-1.5 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-2.5 shadow-inner"
+            class="w-full px-2 py-1.5 text-[9px] leading-none font-arcade border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-2.5 shadow-inner"
+            style="background-color: var(--input-bg); border-color: var(--input-border); color: var(--input-text);"
             aria-label="Task description" />
 
         <!-- Monitoring Button -->
         <button id="start-monitoring"
-            class="btn pulse-anim mb-2 px-3 py-1.5 rounded-md bg-secondary hover:bg-secondary-hover border-2 border-emerald-700 text-white text-[9px] leading-none font-semibold shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 w-full pixel-border"
+            class="btn pulse-anim mb-2 px-3 py-1.5 rounded-md border-2 text-[9px] leading-none font-semibold shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-emerald-400 w-full pixel-border"
+            style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);"
             aria-label="Start/Stop productivity monitoring">START</button>
 
         <!-- Interaction Area -->
         <div class="mt-2 flex items-center space-x-1.5 w-full">
             <input type="text" id="chat-input" placeholder="Ask me..."
-                class="flex-grow px-2 py-1 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-inner"
+                class="flex-grow px-2 py-1 text-[9px] leading-none font-arcade border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-inner"
+                style="background-color: var(--input-bg); border-color: var(--input-border); color: var(--input-text);"
                 aria-label="Chat input" />
             <button id="chat-button"
-                class="btn px-2 py-1 rounded-md bg-accent hover:bg-accent-hover border-2 border-amber-700 text-black text-[9px] leading-none font-bold shadow-md transition-all focus:outline-none focus:ring-1 focus:ring-amber-300 pixel-border"
+                class="btn px-2 py-1 rounded-md border-2 text-[9px] leading-none font-bold shadow-md transition-all focus:outline-none focus:ring-1 focus:ring-amber-300 pixel-border"
+                style="background-color: var(--button-bg); border-color: var(--button-border); color: var(--button-text);"
                 aria-label="Send chat message">&gt;</button>
         </div>
 

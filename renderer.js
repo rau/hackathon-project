@@ -14,6 +14,10 @@ const statsMode = document.getElementById("stats-mode")
 const statsDistractions = document.getElementById("stats-distractions")
 const statsStatus = document.getElementById("stats-status")
 const windowChangeToggle = document.getElementById("window-change-toggle")
+const themeSelect = document.getElementById("theme-select")
+const themeToggleButton = document.getElementById("theme-toggle-button")
+const themeDropdown = document.getElementById("theme-dropdown")
+const themeOptions = document.querySelectorAll(".theme-option")
 
 // Chat input and button
 const chatInput = document.getElementById("chat-input")
@@ -582,6 +586,78 @@ if (personalitySelect) {
 	})
 }
 
+// Theme toggle dropdown
+themeToggleButton.addEventListener("click", () => {
+	themeDropdown.classList.toggle("hidden")
+})
+
+// Close theme dropdown when clicking outside
+document.addEventListener("click", (event) => {
+	if (
+		!themeToggleButton.contains(event.target) &&
+		!themeDropdown.contains(event.target)
+	) {
+		themeDropdown.classList.add("hidden")
+	}
+})
+
+// Handle theme option selection
+themeOptions.forEach((option) => {
+	option.addEventListener("click", () => {
+		const themeName = option.getAttribute("data-theme")
+		console.log("Theme selected:", themeName)
+
+		// Remove all theme classes
+		widget.classList.remove("retro-theme", "claude-theme")
+		// Add selected theme class
+		widget.classList.add(`${themeName}-theme`)
+
+		// Mark the active theme in the dropdown
+		themeOptions.forEach((opt) => {
+			opt.classList.toggle(
+				"bg-indigo-600",
+				opt.getAttribute("data-theme") === themeName
+			)
+			opt.classList.toggle(
+				"bg-indigo-800/80",
+				opt.getAttribute("data-theme") !== themeName
+			)
+		})
+
+		// Update the select in stats display if available
+		if (themeSelect) {
+			themeSelect.value = themeName
+		}
+
+		themeDropdown.classList.add("hidden")
+	})
+})
+
+// Keep the theme select in stats panel synchronized
+if (themeSelect) {
+	themeSelect.addEventListener("change", () => {
+		const themeName = themeSelect.value
+		console.log("Theme changed via select:", themeName)
+
+		// Remove all theme classes
+		widget.classList.remove("retro-theme", "claude-theme")
+		// Add selected theme class
+		widget.classList.add(`${themeName}-theme`)
+
+		// Mark the active theme in the dropdown
+		themeOptions.forEach((opt) => {
+			opt.classList.toggle(
+				"bg-indigo-600",
+				opt.getAttribute("data-theme") === themeName
+			)
+			opt.classList.toggle(
+				"bg-indigo-800/80",
+				opt.getAttribute("data-theme") !== themeName
+			)
+		})
+	})
+}
+
 // Window change detection toggle listener
 windowChangeToggle.addEventListener("change", (event) => {
 	console.log("Window change detection toggle:", event.target.checked)
@@ -794,6 +870,21 @@ document.addEventListener("DOMContentLoaded", () => {
 	console.log("DOM loaded. Initializing application...")
 
 	try {
+		// Initialize the theme
+		widget.classList.add("retro-theme")
+
+		// Mark the active theme in the dropdown
+		themeOptions.forEach((opt) => {
+			opt.classList.toggle(
+				"bg-indigo-600",
+				opt.getAttribute("data-theme") === "retro"
+			)
+			opt.classList.toggle(
+				"bg-indigo-800/80",
+				opt.getAttribute("data-theme") !== "retro"
+			)
+		})
+
 		// Initialize the logic module first if available
 		if (
 			window.electron?.logic?.initialize &&

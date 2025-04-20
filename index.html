@@ -162,6 +162,27 @@
                 title="Switch Mode" aria-label="Switch Mode">
             🧘
         </button>
+        
+        <!-- Personality Toggle Button (Top Left Corner) -->
+        <div class="absolute top-1 left-1 z-20">
+            <button id="persona-toggle-button"
+                    class="btn w-6 h-6 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
+                    title="Change Personality" aria-label="Change Personality">
+                😀
+            </button>
+            
+            <!-- Personality Quick Selector (pops up when persona button is clicked) -->
+            <div id="persona-dropdown" 
+                 class="absolute left-0 top-7 bg-indigo-950/90 backdrop-blur-sm border border-indigo-500 rounded-md p-2 shadow-xl hidden">
+                <div class="text-indigo-300 text-[7px] font-bold mb-1.5">SELECT PERSONALITY:</div>
+                <div class="flex flex-col space-y-1">
+                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="standard">Standard 😊</button>
+                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="asianMom">Asian Mom 👩‍👦</button>
+                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="panda">Panda 🐼</button>
+                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="oldMan">Old Man 👴</button>
+                </div>
+            </div>
+        </div>
 
         <!-- Stats Display (Positioned Above Sprite, below Stats button) -->
         <div id="stats-display"
@@ -169,6 +190,19 @@
             <p class="flex justify-between"><span class="text-indigo-300">MODE:</span> <span id="stats-mode" class="text-yellow-300">PRODUCTIVITY</span></p>
             <p class="flex justify-between"><span class="text-indigo-300">HITS:</span> <span id="stats-distractions" class="text-yellow-300">0</span></p>
             <p class="flex justify-between"><span class="text-indigo-300">STATUS:</span> <span id="stats-status" class="text-yellow-300">ALIVE</span></p>
+            
+            <!-- Personality Selector -->
+            <div class="flex items-center justify-between my-1.5 pt-1.5 border-t border-indigo-800/70">
+                <span class="text-indigo-300">PERSONA:</span>
+                <select id="personality-select" class="bg-indigo-900 text-[7px] text-yellow-300 border border-indigo-700 rounded px-1 w-24 py-0.5 -webkit-app-region: no-drag">
+                    <option value="standard">Standard</option>
+                    <option value="asianMom">Asian Mom</option>
+                    <option value="panda">Panda</option>
+                    <option value="oldMan">Old Man</option>
+                </select>
+            </div>
+            
+            <!-- Tab Detection Toggle -->
             <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-indigo-800/70">
                 <span class="text-indigo-300">TAB DETECT:</span>
                 <label class="inline-flex items-center cursor-pointer">

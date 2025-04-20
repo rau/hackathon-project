@@ -19,19 +19,98 @@ let state = {
 	captureScreenshotFn: null, // <-- Store the capture function
 	lastScreenshotHash: null, // For detecting window/tab changes
 	windowChangeDetection: false, // Flag to enable/disable window change detection
+	personalityType: "standard", // 'standard', 'asianMom', 'panda', 'oldMan'
+	previouslyDistracted: false // Track previous distraction state for state change detection
 }
 
 // --- Constants ---
 const DISTRACTION_LIMIT = 3
 const MONITORING_INTERVAL_MS = 30000 // 15 seconds
 const WINDOW_CHECK_INTERVAL_MS = 2000 // Increased to 8 seconds to reduce frequent checks
-const HASH_DISTANCE_THRESHOLD = 12; // Lower = more sensitive, higher = less sensitive
+const HASH_DISTANCE_THRESHOLD = 15; // Lower = more sensitive, higher = less sensitive
 
-const deadMessages = [
-	"Oh no... I didn't make it. 💀",
-	"Too many distractions... farewell. 💔",
-	"Productivity zero... sprite zero... 😵",
-]
+// Personality-specific messages
+const personalityMessages = {
+	standard: {
+		productive: [
+			"Great work! Keep it up! 💪",
+			"You're crushing it! 🌟",
+			"Such focus! Much wow! 🎯",
+			"Productivity level: OVER 9000! 🚀",
+		],
+		unproductive: [
+			"Hey... maybe we should focus? 🤔",
+			"Is this really work related? 😅",
+			"I believe in you! Let's get back to it! 💪",
+			"Social media can wait! 🙏",
+		],
+		dead: [
+			"Oh no... I didn't make it. 💀",
+			"Too many distractions... farewell. 💔",
+			"Productivity zero... sprite zero... 😵",
+		]
+	},
+	asianMom: {
+		productive: [
+			"Not bad, but neighbor's kid works harder! 🧮",
+			"Good job! Now do more! 📚",
+			"This acceptable. But why not A+? 🥇",
+			"You making progress. Doctor career still possible! 👩‍⚕️",
+		],
+		unproductive: [
+			"Why you waste time?! Cousin already finish PhD! 😠",
+			"This is how you dishonor family! Back to study! 📝",
+			"You play game?! No dinner tonight! 🍚❌",
+			"I'm not angry, just disappointed... 😒",
+		],
+		dead: [
+			"So many distraction... you never be doctor now! 😭",
+			"You break mother's heart with laziness... 💔",
+			"I give up. Going to call your cousin instead... 📱",
+		]
+	},
+	panda: {
+		productive: [
+			"*happy bamboo munching sounds* 🎋",
+			"You work good! Get treat now! 🍫",
+			"Panda proud of human focus! 🐼👍",
+			"Keep rolling like panda down hill! 🎢",
+		],
+		unproductive: [
+			"*sad panda noises* Human distracted... 🐼",
+			"No bamboo for distracted humans! 🎋❌",
+			"Panda sad when you not focus... 😢",
+			"Panda want human back to work please! 🙏",
+		],
+		dead: [
+			"Panda go sleep now. Too many distraction... 💤",
+			"Panda roll away to find focused friend... 🐼👋",
+			"No more bamboo energy. Productivity extinct! 🪦",
+		]
+	},
+	oldMan: {
+		productive: [
+			"Back in my day, we didn't have distractions! 👴",
+			"That's the spirit, young whippersnapper! 🧓",
+			"Keep it up and you might amount to something! 🏆",
+			"Finally putting that fancy education to use! 📚",
+		],
+		unproductive: [
+			"What in tarnation are you doing?! 😠",
+			"You kids and your social media nonsense! 📱",
+			"In my day, we worked 25 hours a day! Get back to it! ⏰",
+			"This is why your generation can't afford houses! 🏠",
+		],
+		dead: [
+			"That's it! I'm taking a nap. Wake me when you're serious! 💤",
+			"Too many shenanigans! I've lost all hope in your generation... 🪑",
+			"Back in my day, distractions meant THE END! And here we are! 😤",
+		]
+	}
+}
+
+// Default to standard dead messages for backward compatibility
+const deadMessages = personalityMessages.standard.dead
 
 // --- Private Functions ---
 
@@ -39,13 +118,28 @@ const _getRandomMessage = (messages) =>
 	messages[Math.floor(Math.random() * messages.length)]
 
 const _getSpriteMessage = () => {
+	const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
+	
 	if (state.spriteState === "dead") {
-		return _getRandomMessage(deadMessages)
+		return _getRandomMessage(personality.dead)
 	}
-	// Add more nuanced messages based on mode/distractions later if needed
-	return state.currentMode === "productivity"
-		? "Let's focus! ✨"
-		: "Time to relax! 🧘"
+	
+	// Return appropriate message based on mode and personality
+	if (state.currentMode === "productivity") {
+		return _getRandomMessage(personality.productive);
+	} else {
+		// Custom relax messages based on personality
+		switch(state.personalityType) {
+			case "asianMom": 
+				return "OK, you take small break. Five minutes only!";
+			case "panda": 
+				return "Panda relax time! Bamboo and nap! 🎋";
+			case "oldMan": 
+				return "Finally taking a deserved break like in the good old days.";
+			default: 
+				return "Time to relax! 🧘";
+		}
+	}
 }
 
 // Advanced perceptual hashing function for window changes
@@ -94,19 +188,41 @@ const _updateContextHistory = (description) => {
 const _generateSpriteReaction = async (isDistracting, activityDescription) => {
 	if (!state.anthropicClient) {
 		console.warn("Cannot generate reaction, API client not ready.")
-		return isDistracting ? "Hey, focus!" : "Keep it up!" // Simple fallback
+		// Use personality-specific fallback messages
+		const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
+		return isDistracting 
+			? _getRandomMessage(personality.unproductive) 
+			: _getRandomMessage(personality.productive);
 	}
 
 	const promptAction = isDistracting
 		? "distracted by"
 		: "productively working on"
+	
+	// Define personality characteristics for the prompt
+	let personalityPrompt;
+	switch(state.personalityType) {
+		case "asianMom":
+			personalityPrompt = "You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success.";
+			break;
+		case "panda":
+			personalityPrompt = "You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted.";
+			break;
+		case "oldMan":
+			personalityPrompt = "You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise.";
+			break;
+		default:
+			personalityPrompt = "You are a friendly, motivational productivity assistant with a positive, encouraging tone.";
+	}
+	
 	const promptCore = `The user is currently ${promptAction} '${
 		activityDescription || "something"
-	}'. Give a very short (1 sentence, max 10 words), in-character Tamagotchi sprite reaction.`
-	const systemPrompt = `You are a Tamagotchi-like productivity assistant sprite. Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}.`
+	}'. Give a very short (1 sentence, max 10 words), in-character reaction that matches your personality.`
+	
+	const systemPrompt = `${personalityPrompt} Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}.`;
 
 	try {
-		console.log("Generating sprite reaction via Claude...")
+		console.log(`Generating ${state.personalityType} sprite reaction via Claude...`);
 		const response = await state.anthropicClient.messages.create({
 			model: "claude-3-haiku-20240307",
 			max_tokens: 40, // Short response needed
@@ -124,11 +240,19 @@ const _generateSpriteReaction = async (isDistracting, activityDescription) => {
 			return reaction
 		} else {
 			console.warn("Claude did not return expected text for reaction.")
-			return isDistracting ? "Focus!" : "Good job!" // Fallback
+			// Use personality-specific fallback messages
+			const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
+			return isDistracting 
+				? _getRandomMessage(personality.unproductive) 
+				: _getRandomMessage(personality.productive);
 		}
 	} catch (error) {
 		console.error("Error generating sprite reaction:", error)
-		return isDistracting ? "Pay attention!" : "Nice!" // Fallback
+		// Use personality-specific fallback messages
+		const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
+		return isDistracting 
+			? _getRandomMessage(personality.unproductive) 
+			: _getRandomMessage(personality.productive);
 	}
 }
 
@@ -246,12 +370,15 @@ const _updateDistractionState = async (isDistracting, activityDescription) => {
 
 	let message = ""
 	let speakMessage = false // Flag to control speech
+	
+	// Get the appropriate personality
+	const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
 
 	if (state.currentMode !== "productivity" || state.spriteState === "dead") {
 		// Generate a simple status message if not in productivity or dead
 		message =
 			state.spriteState === "dead"
-				? _getRandomMessage(deadMessages)
+				? _getRandomMessage(personality.dead)
 				: `Currently: ${activityDescription || "Idle"}`
 		// Don't speak status messages unless dead? Or maybe speak dead messages?
 		speakMessage = state.spriteState === "dead"
@@ -261,25 +388,62 @@ const _updateDistractionState = async (isDistracting, activityDescription) => {
 
 	// --- In Productivity Mode & Alive ---
 
-	// Generate reaction message using LLM
-	message = await _generateSpriteReaction(isDistracting, activityDescription)
+	// Generate reaction message using LLM or use personality-based message
+	if (Math.random() < 0.7) { // 70% chance to use personality message
+		message = isDistracting
+			? _getRandomMessage(personality.unproductive)
+			: _getRandomMessage(personality.productive);
+	} else {
+		// 30% chance to use LLM for more variety
+		message = await _generateSpriteReaction(isDistracting, activityDescription)
+	}
 
+	// Detect state changes for audible feedback
+	const wasDistracted = state.previouslyDistracted;
+	const stateChanged = (wasDistracted !== isDistracting);
+	
 	if (isDistracting) {
 		state.distractionCount++
 		console.log("Distraction detected! Count:", state.distractionCount)
-		speakMessage = true // Speak distracting messages
+		// Always speak when distracted
+		speakMessage = true; 
 
 		if (state.distractionCount >= DISTRACTION_LIMIT) {
 			console.log("Distraction limit reached! Sprite is now dead.")
 			state.spriteState = "dead"
-			message = _getRandomMessage(deadMessages) // Override with dead message
-			speakMessage = true // Speak the dead message
+			message = _getRandomMessage(personality.dead) // Override with dead message based on personality
+			speakMessage = true // Always speak the dead message
 			stopProductivityCheck()
 		}
 	} else {
 		console.log("Productive screen detected.")
-		speakMessage = false // Do NOT speak productive messages
+		// Only speak when transitioning from distracted to focused
+		speakMessage = stateChanged && wasDistracted; 
+		
+		if (speakMessage) {
+			console.log("State changed from distracted to focused - speaking message");
+			// Override with a "back on track" message
+			if (Math.random() < 0.7) {
+				switch(state.personalityType) {
+					case "asianMom":
+						message = "Finally! You back to work now. Good!";
+						break;
+					case "panda":
+						message = "Panda happy! Human focusing again! 🎋";
+						break;
+					case "oldMan":
+						message = "Well, well! Finally back to work, I see!";
+						break;
+					default:
+						message = "Great! Back on track! 👍";
+				}
+			}
+		}
 	}
+	
+	// Update the previous distraction state for next time
+	state.previouslyDistracted = isDistracting;
+	
 	state.uiUpdateCallback(getState(), message, speakMessage) // Update UI with new state, message, and speak flag
 }
 
@@ -370,10 +534,35 @@ const _scheduleNextCheck = (delayMs) => {
 	}, delayMs)
 }
 
-const initialize = (uiUpdateCallback, apiKey, captureFn) => {
+// Function to set the personality type
+const setPersonalityType = (personalityType) => {
+	if (["standard", "asianMom", "panda", "oldMan"].includes(personalityType)) {
+		state.personalityType = personalityType;
+		console.log(`Personality changed to: ${personalityType}`);
+		
+		// Get welcome message based on the new personality
+		const personality = personalityMessages[state.personalityType];
+		const welcomeMessage = state.personalityType === "standard" 
+			? "Welcome! Ready for Productivity mode? ✨"
+			: _getRandomMessage(personality.productive);
+			
+		// Update UI with the new personality's message
+		state.uiUpdateCallback(getState(), welcomeMessage, true);
+		return true;
+	}
+	return false;
+}
+
+const initialize = (uiUpdateCallback, apiKey, captureFn, personalityType = "standard") => {
 	console.log("Initializing logic module...")
 	state.uiUpdateCallback = uiUpdateCallback
 	state.apiKey = apiKey
+	
+	// Set initial personality type
+	if (personalityType && ["standard", "asianMom", "panda", "oldMan"].includes(personalityType)) {
+		state.personalityType = personalityType;
+		console.log(`Initial personality set to: ${personalityType}`);
+	}
 	
 	// Store screenshot capture function if provided
 	if (typeof captureFn === 'function') {
@@ -398,10 +587,16 @@ const initialize = (uiUpdateCallback, apiKey, captureFn) => {
 		startWindowChangeDetection(state.captureScreenshotFn);
 	}
 	
+	// Get welcome message based on personality
+	const personality = personalityMessages[state.personalityType];
+	const welcomeMessage = state.personalityType === "standard" 
+		? "Welcome! Ready for Productivity mode? ✨"
+		: _getRandomMessage(personality.productive);
+	
 	// Send initial state to UI (including statsVisible)
 	state.uiUpdateCallback(
 		getState(),
-		"Welcome! Ready for Productivity mode? ✨",
+		welcomeMessage,
 		true
 	)
 }
@@ -414,6 +609,7 @@ const getState = () => {
 		status: state.spriteState,
 		isMonitoring: state.isMonitoring,
 		statsVisible: state.statsVisible,
+		personalityType: state.personalityType // Include personality type in state
 	}
 }
 
@@ -605,6 +801,10 @@ const startProductivityCheck = (captureFn) => {
 	state.distractionCount = 0
 	console.log("Distraction count reset to 0")
 	
+	// Reset previous distraction state
+	state.previouslyDistracted = false
+	console.log("Previous distraction state reset")
+	
 	// Reset sprite state if it was dead
 	if (state.spriteState === "dead") {
 		state.spriteState = "alive"
@@ -699,7 +899,24 @@ const getHelpOrChat = async (userQuery) => {
 
 	// Emphasize context more strongly in the system prompt
 	const contextString = state.contextHistory.join("; ") || "None recorded yet"
-	const systemPrompt = `You are a friendly Tamagotchi-like productivity assistant sprite. Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}. The user's recent screen activity context is: [${contextString}]. Respond to the user's query concisely and helpfully (1-2 sentences max), keeping your persona in mind. **If their query seems related to their recent activity, reference that context in your response.** If they are just chatting, be friendly.`
+	
+	// Define personality characteristics for the prompt
+	let personalityPrompt;
+	switch(state.personalityType) {
+		case "asianMom":
+			personalityPrompt = "You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success.";
+			break;
+		case "panda":
+			personalityPrompt = "You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted.";
+			break;
+		case "oldMan":
+			personalityPrompt = "You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise.";
+			break;
+		default:
+			personalityPrompt = "You are a friendly, motivational productivity assistant with a positive, encouraging tone.";
+	}
+	
+	const systemPrompt = `${personalityPrompt} Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}. The user's recent screen activity context is: [${contextString}]. Respond to the user's query concisely and helpfully (1-2 sentences max), keeping your persona in mind. **If their query seems related to their recent activity, reference that context in your response.** If they are just chatting, be friendly but stay in character.`
 
 	let chatResponseText = "..." // Default or loading message
 	try {
@@ -754,4 +971,5 @@ module.exports = {
 	getHelpOrChat, // <-- Export interaction function
 	startWindowChangeDetection, // <-- Export window change detection functions
 	stopWindowChangeDetection,
+	setPersonalityType, // <-- Export personality function
 }

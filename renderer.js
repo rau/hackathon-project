@@ -516,6 +516,58 @@ const handleAnalyzeScreenResult = (isDistracting) => {
 modeToggleButton.addEventListener("click", handleToggleMode)
 statsToggleButton.addEventListener("click", handleToggleStats)
 
+// Personality dropdown toggle
+const personaToggleButton = document.getElementById("persona-toggle-button")
+const personaDropdown = document.getElementById("persona-dropdown")
+const personaOptions = document.querySelectorAll(".persona-option")
+const personalitySelect = document.getElementById("personality-select")
+
+// Toggle persona dropdown visibility
+personaToggleButton.addEventListener("click", () => {
+	personaDropdown.classList.toggle("hidden")
+})
+
+// Close dropdown when clicking outside of it
+document.addEventListener("click", (event) => {
+	if (!personaToggleButton.contains(event.target) && !personaDropdown.contains(event.target)) {
+		personaDropdown.classList.add("hidden")
+	}
+})
+
+// Handle persona option selection
+personaOptions.forEach(option => {
+	option.addEventListener("click", () => {
+		const persona = option.getAttribute("data-persona")
+		console.log("Personality selected:", persona)
+		
+		if (window.electron?.logic?.setPersonalityType) {
+			window.electron.logic.setPersonalityType(persona)
+			personaDropdown.classList.add("hidden")
+			
+			// Also update the select in stats display
+			if (personalitySelect) {
+				personalitySelect.value = persona
+			}
+		} else {
+			console.error("setPersonalityType function not available!")
+		}
+	})
+})
+
+// Handle personality select in stats display
+if (personalitySelect) {
+	personalitySelect.addEventListener("change", () => {
+		const persona = personalitySelect.value
+		console.log("Personality changed via select:", persona)
+		
+		if (window.electron?.logic?.setPersonalityType) {
+			window.electron.logic.setPersonalityType(persona)
+		} else {
+			console.error("setPersonalityType function not available!")
+		}
+	})
+}
+
 // Window change detection toggle listener
 windowChangeToggle.addEventListener("change", (event) => {
 	console.log("Window change detection toggle:", event.target.checked)
@@ -599,6 +651,33 @@ const updateRendererUI = (newState, message, speakMessage = false) => {
 			? "Switch to Relax Mode"
 			: "Switch to Productivity Mode"
 	) // Update title
+
+	// Update Personality UI if available
+	if (newState.personalityType) {
+		// Update personality dropdown select if it exists
+		const personalitySelect = document.getElementById("personality-select")
+		if (personalitySelect && personalitySelect.value !== newState.personalityType) {
+			personalitySelect.value = newState.personalityType
+		}
+		
+		// Update persona toggle button icon based on personality
+		const personaToggleButton = document.getElementById("persona-toggle-button")
+		if (personaToggleButton) {
+			switch(newState.personalityType) {
+				case "asianMom":
+					personaToggleButton.textContent = "👩‍👦"
+					break
+				case "panda":
+					personaToggleButton.textContent = "🐼"
+					break
+				case "oldMan":
+					personaToggleButton.textContent = "👴"
+					break
+				default: // standard
+					personaToggleButton.textContent = "😀"
+			}
+		}
+	}
 
 	// Update Sprite Appearance
 	const isDead = newState.status === "dead"

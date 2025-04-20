@@ -51,6 +51,8 @@ contextBridge.exposeInMainWorld("electron", {
 		// New window change detection functions
 		startWindowChangeDetection: appLogic.startWindowChangeDetection,
 		stopWindowChangeDetection: appLogic.stopWindowChangeDetection,
+		// Personality function
+		setPersonalityType: appLogic.setPersonalityType,
 	},
     // Theme related functionality
     theme: {

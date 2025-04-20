@@ -1,6 +1,5 @@
 const { Anthropic } = require("@anthropic-ai/sdk") // Use require for Node.js modules
-const imghash = require('imghash');
-const { createCanvas, Image } = require('canvas');
+const { createCanvas, Image } = require("canvas")
 
 // --- State ---
 let state = {
@@ -17,17 +16,36 @@ let state = {
 	monitoringInterval: null,
 	timerPausedTimeout: null, // <-- Add handle for paused timer
 	captureScreenshotFn: null, // <-- Store the capture function
-	lastScreenshotHash: null, // For detecting window/tab changes
 	windowChangeDetection: false, // Flag to enable/disable window change detection
 	personalityType: "standard", // 'standard', 'asianMom', 'panda', 'oldMan'
-	previouslyDistracted: false // Track previous distraction state for state change detection
+	previouslyDistracted: false, // Track previous distraction state for state change detection
+	lastWindowChangeTime: 0,
+	lastAppName: null,
+	windowChangeListener: null,
+	emotionLevel: 100, // Start at 100% happiness
+	currentEmotion: "happy",
 }
 
 // --- Constants ---
 const DISTRACTION_LIMIT = 3
-const MONITORING_INTERVAL_MS = 30000 // 15 seconds
-const WINDOW_CHECK_INTERVAL_MS = 2000 // Increased to 8 seconds to reduce frequent checks
-const HASH_DISTANCE_THRESHOLD = 15; // Lower = more sensitive, higher = less sensitive
+const MONITORING_INTERVAL_MS = 5000 // 15 seconds
+const WINDOW_CHANGE_DEBOUNCE_MS = 3000 // 3 seconds minimum between window changes
+
+// Add emotion level constants
+const EMOTION_LEVELS = {
+	HAPPY: "happy",
+	NEUTRAL: "neutral",
+	UNHAPPY: "unhappy",
+	WHEELCHAIR: "wheelchair",
+	DEAD: "dead",
+}
+
+const EMOTION_THRESHOLDS = {
+	HAPPY: 80, // 80-100: Happy
+	NEUTRAL: 60, // 60-79: Neutral
+	UNHAPPY: 40, // 40-59: Unhappy
+	WHEELCHAIR: 20, // 20-39: Wheelchair, Below 20: Dead
+}
 
 // Personality-specific messages
 const personalityMessages = {
@@ -48,7 +66,7 @@ const personalityMessages = {
 			"Oh no... I didn't make it. 💀",
 			"Too many distractions... farewell. 💔",
 			"Productivity zero... sprite zero... 😵",
-		]
+		],
 	},
 	asianMom: {
 		productive: [
@@ -67,7 +85,7 @@ const personalityMessages = {
 			"So many distraction... you never be doctor now! 😭",
 			"You break mother's heart with laziness... 💔",
 			"I give up. Going to call your cousin instead... 📱",
-		]
+		],
 	},
 	panda: {
 		productive: [
@@ -86,7 +104,7 @@ const personalityMessages = {
 			"Panda go sleep now. Too many distraction... 💤",
 			"Panda roll away to find focused friend... 🐼👋",
 			"No more bamboo energy. Productivity extinct! 🪦",
-		]
+		],
 	},
 	oldMan: {
 		productive: [
@@ -105,8 +123,8 @@ const personalityMessages = {
 			"That's it! I'm taking a nap. Wake me when you're serious! 💤",
 			"Too many shenanigans! I've lost all hope in your generation... 🪑",
 			"Back in my day, distractions meant THE END! And here we are! 😤",
-		]
-	}
+		],
+	},
 }
 
 // Default to standard dead messages for backward compatibility
@@ -118,60 +136,29 @@ const _getRandomMessage = (messages) =>
 	messages[Math.floor(Math.random() * messages.length)]
 
 const _getSpriteMessage = () => {
-	const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
-	
+	const personality =
+		personalityMessages[state.personalityType] || personalityMessages.standard
+
 	if (state.spriteState === "dead") {
 		return _getRandomMessage(personality.dead)
 	}
-	
+
 	// Return appropriate message based on mode and personality
 	if (state.currentMode === "productivity") {
-		return _getRandomMessage(personality.productive);
+		return _getRandomMessage(personality.productive)
 	} else {
 		// Custom relax messages based on personality
-		switch(state.personalityType) {
-			case "asianMom": 
-				return "OK, you take small break. Five minutes only!";
-			case "panda": 
-				return "Panda relax time! Bamboo and nap! 🎋";
-			case "oldMan": 
-				return "Finally taking a deserved break like in the good old days.";
-			default: 
-				return "Time to relax! 🧘";
+		switch (state.personalityType) {
+			case "asianMom":
+				return "OK, you take small break. Five minutes only!"
+			case "panda":
+				return "Panda relax time! Bamboo and nap! 🎋"
+			case "oldMan":
+				return "Finally taking a deserved break like in the good old days."
+			default:
+				return "Time to relax! 🧘"
 		}
 	}
-}
-
-// Advanced perceptual hashing function for window changes
-// This extracts the top portion of the image and uses perceptual hashing
-const _generateScreenshotHash = async (base64Data) => {
-    if (!base64Data || base64Data.length < 1000) return null;
-    
-    try {
-        // Create a data URL from the base64 string
-        const dataUrl = `data:image/png;base64,${base64Data}`;
-        
-        // Create a buffer from the base64 string for imghash
-        const buffer = Buffer.from(base64Data, 'base64');
-        
-        // Simply use imghash directly on the buffer - it's more reliable
-        // with smaller hash size (8 bits) for less sensitivity to minor changes
-        const hash = await imghash.hash(buffer, 8);
-        console.log('Generated perceptual hash:', hash);
-        
-        return hash;
-    } catch (error) {
-        console.error('Error in perceptual hashing:', error);
-        
-        // Fallback to simple hash if perceptual hashing fails
-        let hash = 0;
-        const sampleString = base64Data.substring(0, 500);
-        for (let i = 0; i < sampleString.length; i += 10) {
-            hash = ((hash << 5) - hash) + sampleString.charCodeAt(i);
-            hash |= 0;
-        }
-        return hash.toString();
-    }
 }
 
 const _updateContextHistory = (description) => {
@@ -189,40 +176,47 @@ const _generateSpriteReaction = async (isDistracting, activityDescription) => {
 	if (!state.anthropicClient) {
 		console.warn("Cannot generate reaction, API client not ready.")
 		// Use personality-specific fallback messages
-		const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
-		return isDistracting 
-			? _getRandomMessage(personality.unproductive) 
-			: _getRandomMessage(personality.productive);
+		const personality =
+			personalityMessages[state.personalityType] || personalityMessages.standard
+		return isDistracting
+			? _getRandomMessage(personality.unproductive)
+			: _getRandomMessage(personality.productive)
 	}
 
 	const promptAction = isDistracting
 		? "distracted by"
 		: "productively working on"
-	
+
 	// Define personality characteristics for the prompt
-	let personalityPrompt;
-	switch(state.personalityType) {
+	let personalityPrompt
+	switch (state.personalityType) {
 		case "asianMom":
-			personalityPrompt = "You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success.";
-			break;
+			personalityPrompt =
+				"You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success."
+			break
 		case "panda":
-			personalityPrompt = "You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted.";
-			break;
+			personalityPrompt =
+				"You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted."
+			break
 		case "oldMan":
-			personalityPrompt = "You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise.";
-			break;
+			personalityPrompt =
+				"You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise."
+			break
 		default:
-			personalityPrompt = "You are a friendly, motivational productivity assistant with a positive, encouraging tone.";
+			personalityPrompt =
+				"You are a friendly, motivational productivity assistant with a positive, encouraging tone."
 	}
-	
+
 	const promptCore = `The user is currently ${promptAction} '${
 		activityDescription || "something"
 	}'. Give a very short (1 sentence, max 10 words), in-character reaction that matches your personality.`
-	
-	const systemPrompt = `${personalityPrompt} Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}.`;
+
+	const systemPrompt = `${personalityPrompt} Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}.`
 
 	try {
-		console.log(`Generating ${state.personalityType} sprite reaction via Claude...`);
+		console.log(
+			`Generating ${state.personalityType} sprite reaction via Claude...`
+		)
 		const response = await state.anthropicClient.messages.create({
 			model: "claude-3-haiku-20240307",
 			max_tokens: 40, // Short response needed
@@ -241,18 +235,21 @@ const _generateSpriteReaction = async (isDistracting, activityDescription) => {
 		} else {
 			console.warn("Claude did not return expected text for reaction.")
 			// Use personality-specific fallback messages
-			const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
-			return isDistracting 
-				? _getRandomMessage(personality.unproductive) 
-				: _getRandomMessage(personality.productive);
+			const personality =
+				personalityMessages[state.personalityType] ||
+				personalityMessages.standard
+			return isDistracting
+				? _getRandomMessage(personality.unproductive)
+				: _getRandomMessage(personality.productive)
 		}
 	} catch (error) {
 		console.error("Error generating sprite reaction:", error)
 		// Use personality-specific fallback messages
-		const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
-		return isDistracting 
-			? _getRandomMessage(personality.unproductive) 
-			: _getRandomMessage(personality.productive);
+		const personality =
+			personalityMessages[state.personalityType] || personalityMessages.standard
+		return isDistracting
+			? _getRandomMessage(personality.unproductive)
+			: _getRandomMessage(personality.productive)
 	}
 }
 
@@ -365,14 +362,50 @@ const analyzeScreenshotWithClaude = async (screenshotBase64) => {
 
 // --- Core Logic Functions (Modified) ---
 
+// Function to update emotion level
+const _updateEmotionLevel = (isDistracting) => {
+	// Update emotion level based on productivity
+	const change = isDistracting ? -15 : +10
+	state.emotionLevel = Math.max(0, Math.min(100, state.emotionLevel + change))
+
+	// Determine new emotion based on thresholds
+	let newEmotion
+	if (state.emotionLevel >= EMOTION_THRESHOLDS.HAPPY) {
+		newEmotion = EMOTION_LEVELS.HAPPY
+	} else if (state.emotionLevel >= EMOTION_THRESHOLDS.NEUTRAL) {
+		newEmotion = EMOTION_LEVELS.NEUTRAL
+	} else if (state.emotionLevel >= EMOTION_THRESHOLDS.UNHAPPY) {
+		newEmotion = EMOTION_LEVELS.UNHAPPY
+	} else if (state.emotionLevel >= EMOTION_THRESHOLDS.WHEELCHAIR) {
+		newEmotion = EMOTION_LEVELS.WHEELCHAIR
+	} else {
+		newEmotion = EMOTION_LEVELS.DEAD
+	}
+
+	// Only update if emotion changed
+	if (newEmotion !== state.currentEmotion) {
+		state.currentEmotion = newEmotion
+		if (newEmotion === EMOTION_LEVELS.DEAD) {
+			state.spriteState = "dead"
+			stopProductivityCheck()
+		}
+		return true // Emotion changed
+	}
+	return false // No change
+}
+
 const _updateDistractionState = async (isDistracting, activityDescription) => {
 	_updateContextHistory(activityDescription)
 
 	let message = ""
 	let speakMessage = false // Flag to control speech
-	
+
+	// Update emotion level and get whether it changed
+	const emotionChanged = _updateEmotionLevel(isDistracting)
+
 	// Get the appropriate personality
-	const personality = personalityMessages[state.personalityType] || personalityMessages.standard;
+	const personality =
+		personalityMessages[state.personalityType] || personalityMessages.standard
 
 	if (state.currentMode !== "productivity" || state.spriteState === "dead") {
 		// Generate a simple status message if not in productivity or dead
@@ -389,61 +422,67 @@ const _updateDistractionState = async (isDistracting, activityDescription) => {
 	// --- In Productivity Mode & Alive ---
 
 	// Generate reaction message using LLM or use personality-based message
-	if (Math.random() < 0.7) { // 70% chance to use personality message
+	if (Math.random() < 0.7) {
+		// 70% chance to use personality message
 		message = isDistracting
 			? _getRandomMessage(personality.unproductive)
-			: _getRandomMessage(personality.productive);
+			: _getRandomMessage(personality.productive)
 	} else {
 		// 30% chance to use LLM for more variety
 		message = await _generateSpriteReaction(isDistracting, activityDescription)
 	}
 
 	// Detect state changes for audible feedback
-	const wasDistracted = state.previouslyDistracted;
-	const stateChanged = (wasDistracted !== isDistracting);
-	
+	const wasDistracted = state.previouslyDistracted
+	const stateChanged = wasDistracted !== isDistracting
+
 	if (isDistracting) {
 		state.distractionCount++
-		console.log("Distraction detected! Count:", state.distractionCount)
+		console.log(
+			"Distraction detected! Count:",
+			state.distractionCount,
+			"Emotion Level:",
+			state.emotionLevel
+		)
 		// Always speak when distracted
-		speakMessage = true; 
+		speakMessage = true
 
-		if (state.distractionCount >= DISTRACTION_LIMIT) {
-			console.log("Distraction limit reached! Sprite is now dead.")
-			state.spriteState = "dead"
+		if (state.currentEmotion === EMOTION_LEVELS.DEAD) {
 			message = _getRandomMessage(personality.dead) // Override with dead message based on personality
 			speakMessage = true // Always speak the dead message
 			stopProductivityCheck()
 		}
 	} else {
-		console.log("Productive screen detected.")
+		console.log(
+			"Productive screen detected. Emotion Level:",
+			state.emotionLevel
+		)
 		// Only speak when transitioning from distracted to focused
-		speakMessage = stateChanged && wasDistracted; 
-		
-		if (speakMessage) {
-			console.log("State changed from distracted to focused - speaking message");
-			// Override with a "back on track" message
-			if (Math.random() < 0.7) {
-				switch(state.personalityType) {
-					case "asianMom":
-						message = "Finally! You back to work now. Good!";
-						break;
-					case "panda":
-						message = "Panda happy! Human focusing again! 🎋";
-						break;
-					case "oldMan":
-						message = "Well, well! Finally back to work, I see!";
-						break;
-					default:
-						message = "Great! Back on track! 👍";
-				}
+		speakMessage = stateChanged && wasDistracted
+
+		if (speakMessage && emotionChanged) {
+			console.log("State changed from distracted to focused - speaking message")
+			// Add emotion-specific messages when improving
+			switch (state.currentEmotion) {
+				case EMOTION_LEVELS.HAPPY:
+					message = "Yay! I'm feeling much better now! 🌟"
+					break
+				case EMOTION_LEVELS.NEUTRAL:
+					message = "Getting better! Keep it up! 👍"
+					break
+				case EMOTION_LEVELS.UNHAPPY:
+					message = "Still not feeling great, but improving... 😕"
+					break
+				case EMOTION_LEVELS.WHEELCHAIR:
+					message = "Barely hanging on... please focus! 🙏"
+					break
 			}
 		}
 	}
-	
+
 	// Update the previous distraction state for next time
-	state.previouslyDistracted = isDistracting;
-	
+	state.previouslyDistracted = isDistracting
+
 	state.uiUpdateCallback(getState(), message, speakMessage) // Update UI with new state, message, and speak flag
 }
 
@@ -480,11 +519,7 @@ const _performProductivityCheck = async () => {
 	}
 	if (!state.captureScreenshotFn) {
 		console.error("Error: Screenshot capture function not available.")
-		state.uiUpdateCallback(
-			getState(),
-			"Error: Cannot capture screen.",
-			true
-		)
+		state.uiUpdateCallback(getState(), "Error: Cannot capture screen.", true)
 		stopProductivityCheck()
 		return
 	}
@@ -537,38 +572,49 @@ const _scheduleNextCheck = (delayMs) => {
 // Function to set the personality type
 const setPersonalityType = (personalityType) => {
 	if (["standard", "asianMom", "panda", "oldMan"].includes(personalityType)) {
-		state.personalityType = personalityType;
-		console.log(`Personality changed to: ${personalityType}`);
-		
+		state.personalityType = personalityType
+		console.log(`Personality changed to: ${personalityType}`)
+
 		// Get welcome message based on the new personality
-		const personality = personalityMessages[state.personalityType];
-		const welcomeMessage = state.personalityType === "standard" 
-			? "Welcome! Ready for Productivity mode? ✨"
-			: _getRandomMessage(personality.productive);
-			
+		const personality = personalityMessages[state.personalityType]
+		const welcomeMessage =
+			state.personalityType === "standard"
+				? "Welcome! Ready for Productivity mode? ✨"
+				: _getRandomMessage(personality.productive)
+
 		// Update UI with the new personality's message
-		state.uiUpdateCallback(getState(), welcomeMessage, true);
-		return true;
+		state.uiUpdateCallback(getState(), welcomeMessage, true)
+		return true
 	}
-	return false;
+	return false
 }
 
-const initialize = (uiUpdateCallback, apiKey, captureFn, personalityType = "standard") => {
+const initialize = (
+	uiUpdateCallback,
+	apiKey,
+	captureFn,
+	personalityType = "standard"
+) => {
 	console.log("Initializing logic module...")
 	state.uiUpdateCallback = uiUpdateCallback
 	state.apiKey = apiKey
-	
+	state.emotionLevel = 100
+	state.currentEmotion = EMOTION_LEVELS.HAPPY
+
 	// Set initial personality type
-	if (personalityType && ["standard", "asianMom", "panda", "oldMan"].includes(personalityType)) {
-		state.personalityType = personalityType;
-		console.log(`Initial personality set to: ${personalityType}`);
+	if (
+		personalityType &&
+		["standard", "asianMom", "panda", "oldMan"].includes(personalityType)
+	) {
+		state.personalityType = personalityType
+		console.log(`Initial personality set to: ${personalityType}`)
 	}
-	
+
 	// Store screenshot capture function if provided
-	if (typeof captureFn === 'function') {
-		state.captureScreenshotFn = captureFn;
+	if (typeof captureFn === "function") {
+		state.captureScreenshotFn = captureFn
 	}
-	
+
 	if (apiKey) {
 		try {
 			// Ensure Anthropic SDK is compatible with Node.js environment
@@ -581,24 +627,19 @@ const initialize = (uiUpdateCallback, apiKey, captureFn, personalityType = "stan
 	} else {
 		console.warn("API Key not provided during initialization.")
 	}
-	
-	// Automatically start window change detection if capture function is available
-	if (state.captureScreenshotFn && !state.windowChangeDetection) {
-		startWindowChangeDetection(state.captureScreenshotFn);
-	}
-	
+
+	// Start window change detection
+	startWindowChangeDetection()
+
 	// Get welcome message based on personality
-	const personality = personalityMessages[state.personalityType];
-	const welcomeMessage = state.personalityType === "standard" 
-		? "Welcome! Ready for Productivity mode? ✨"
-		: _getRandomMessage(personality.productive);
-	
+	const personality = personalityMessages[state.personalityType]
+	const welcomeMessage =
+		state.personalityType === "standard"
+			? "Welcome! Ready for Productivity mode? ✨"
+			: _getRandomMessage(personality.productive)
+
 	// Send initial state to UI (including statsVisible)
-	state.uiUpdateCallback(
-		getState(),
-		welcomeMessage,
-		true
-	)
+	state.uiUpdateCallback(getState(), welcomeMessage, true)
 }
 
 const getState = () => {
@@ -609,7 +650,9 @@ const getState = () => {
 		status: state.spriteState,
 		isMonitoring: state.isMonitoring,
 		statsVisible: state.statsVisible,
-		personalityType: state.personalityType // Include personality type in state
+		personalityType: state.personalityType, // Include personality type in state
+		emotionLevel: state.emotionLevel,
+		currentEmotion: state.currentEmotion,
 	}
 }
 
@@ -639,214 +682,157 @@ const toggleStatsVisibility = () => {
 	state.uiUpdateCallback(getState(), null, false)
 }
 
-// Helper function to calculate Hamming distance between two hex strings (perceptual hashes)
-const _calculateHashDistance = (hash1, hash2) => {
-    try {
-        // Validate inputs
-        if (!hash1 || !hash2) {
-            console.warn("One or both hashes are empty:", { hash1, hash2 });
-            return Number.MAX_SAFE_INTEGER;
-        }
-        
-        if (hash1.length !== hash2.length) {
-            console.warn(`Hash length mismatch: ${hash1.length} vs ${hash2.length}`);
-            
-            // Try to normalize lengths for more graceful handling
-            const minLength = Math.min(hash1.length, hash2.length);
-            hash1 = hash1.substring(0, minLength);
-            hash2 = hash2.substring(0, minLength);
-            
-            if (minLength < 4) {
-                return Number.MAX_SAFE_INTEGER; // Too short to compare meaningfully
-            }
-        }
-        
-        // Convert hex strings to binary safely
-        let bin1, bin2;
-        try {
-            bin1 = Array.from(hash1).map(h => {
-                const parsed = parseInt(h, 16);
-                return isNaN(parsed) ? '0000' : parsed.toString(2).padStart(4, '0');
-            }).join('');
-            
-            bin2 = Array.from(hash2).map(h => {
-                const parsed = parseInt(h, 16);
-                return isNaN(parsed) ? '0000' : parsed.toString(2).padStart(4, '0');
-            }).join('');
-        } catch (conversionError) {
-            console.error("Error converting hex to binary:", conversionError);
-            return Number.MAX_SAFE_INTEGER;
-        }
-        
-        // Count bit differences (Hamming distance)
-        let distance = 0;
-        const minLength = Math.min(bin1.length, bin2.length);
-        
-        for (let i = 0; i < minLength; i++) {
-            if (bin1[i] !== bin2[i]) {
-                distance++;
-            }
-        }
-        
-        // Add penalty for length differences
-        distance += Math.abs(bin1.length - bin2.length);
-        
-        return distance;
-    } catch (error) {
-        console.error("Error calculating hash distance:", error);
-        return Number.MAX_SAFE_INTEGER;
-    }
-};
-
-// Function to detect window/tab changes and take screenshots
-const startWindowChangeDetection = (captureFn) => {
-	if (state.windowChangeDetection || !captureFn) {
-		console.log("Window change detection already running or missing capture function")
+// Updated window change detection function
+const startWindowChangeDetection = () => {
+	if (state.windowChangeListener) {
+		console.log("Window change detection already running")
 		return
 	}
-	
+
 	console.log("Starting window change detection...")
-	state.captureScreenshotFn = captureFn // Store for later use
-	state.windowChangeDetection = true
-	
-	// For perceptual hashing of window content	
-	// Separate interval for window change detection
-	const windowChangeInterval = setInterval(async () => {
-		if (!state.windowChangeDetection) {
-			clearInterval(windowChangeInterval)
+
+	state.windowChangeListener = async (windowInfo) => {
+		if (!windowInfo || !windowInfo.appName) {
+			console.log("Received invalid window info:", windowInfo)
 			return
 		}
-		
-		try {
-			const screenshot = await captureFn()
-			if (screenshot && screenshot.startsWith("data:image/png;base64,")) {
-				const base64Data = screenshot.split(",")[1]
-				const currentHash = await _generateScreenshotHash(base64Data)
-				
-				// Check if screen has changed significantly using hamming distance comparison
-				if (currentHash && state.lastScreenshotHash) {
-				    const hashDistance = _calculateHashDistance(currentHash, state.lastScreenshotHash);
-				    console.log(`Hash distance: ${hashDistance}, threshold: ${HASH_DISTANCE_THRESHOLD}`);
-				    
-				    // Only consider it a change if the distance is above threshold
-				    if (hashDistance > HASH_DISTANCE_THRESHOLD) {
-					    console.log(`Window/tab change detected! (hash distance: ${hashDistance})`)
-					    state.lastScreenshotHash = currentHash
-					    
-					    // If we're monitoring, analyze the screenshot
-					    if (state.isMonitoring && state.currentMode === "productivity" && state.spriteState !== "dead") {
-						    analyzeScreenAndUpdate(base64Data)
-					    } else {
-						    console.log("Window change detected, but not analyzing (monitoring off or incorrect mode)")
-					    }
-				    } else {
-				        console.log("Minor screen change - below threshold")
-				    }
-				} else if (currentHash) {
-				    // First run or hash was reset
-				    console.log("Setting initial screenshot hash")
-				    state.lastScreenshotHash = currentHash
+
+		const now = Date.now()
+		const timeSinceLastChange = now - state.lastWindowChangeTime
+		const { appName, windowTitle } = windowInfo
+
+		console.log(
+			`App changed to: ${appName}, Window: ${windowTitle}, Time since last change: ${timeSinceLastChange}ms`
+		)
+
+		// Only process the change if enough time has passed and it's a new app
+		if (
+			timeSinceLastChange >= WINDOW_CHANGE_DEBOUNCE_MS &&
+			appName !== state.lastAppName
+		) {
+			console.log("Processing app change after debounce...")
+			state.lastWindowChangeTime = now
+			state.lastAppName = appName
+
+			// Always trigger a check when app changes, regardless of monitoring state
+			try {
+				console.log("Triggering productivity check due to app change")
+				if (!state.captureScreenshotFn) {
+					console.error("Screenshot function not available")
+					return
 				}
+
+				const screenshot = await state.captureScreenshotFn()
+				if (!screenshot) {
+					console.error("Failed to capture screenshot")
+					return
+				}
+
+				if (screenshot.startsWith("data:image/png;base64,")) {
+					const base64Data = screenshot.split(",")[1]
+					console.log("Analyzing screenshot for productivity...")
+					await analyzeScreenAndUpdate(base64Data)
+				} else {
+					console.error("Invalid screenshot format")
+				}
+			} catch (error) {
+				console.error("Error during app change productivity check:", error)
 			}
-		} catch (error) {
-			console.error("Error during window change detection:", error)
+		} else {
+			console.log("Ignoring app change (debounced or same app)")
 		}
-	}, WINDOW_CHECK_INTERVAL_MS)
-	
-	return windowChangeInterval
+	}
+
+	// Register the listener with the electron window API
+	if (
+		typeof window !== "undefined" &&
+		window.electron &&
+		window.electron.window
+	) {
+		window.electron.window.onActiveWindowChange(state.windowChangeListener)
+		console.log("Window change listener registered successfully")
+	} else {
+		console.error(
+			"Failed to register window change listener - electron API not available"
+		)
+	}
 }
 
 const stopWindowChangeDetection = () => {
-	console.log("Stopping window change detection");
-	state.windowChangeDetection = false;
-	
-	// Ensure we don't leave stale hash data
-	state.lastScreenshotHash = null;
+	console.log("Stopping window change detection")
+	if (
+		state.windowChangeListener &&
+		typeof window !== "undefined" &&
+		window.electron &&
+		window.electron.window
+	) {
+		window.electron.window.removeWindowChangeListener()
+		state.windowChangeListener = null
+		console.log("Window change listener removed successfully")
+	}
+	state.lastAppName = null
+	state.lastWindowChangeTime = 0
 }
 
 const startProductivityCheck = (captureFn) => {
-	if (
-		state.currentMode !== "productivity" ||
-		state.isMonitoring
-	) {
+	if (state.currentMode !== "productivity" || state.isMonitoring) {
 		console.log("Cannot start monitoring:", {
 			mode: state.currentMode,
-			status: state.spriteState,
 			isMonitoring: state.isMonitoring,
 		})
 		return
 	}
+
 	if (typeof captureFn !== "function") {
-		console.error(
-			"Capture function not provided to startProductivityCheck!"
-		)
-		state.uiUpdateCallback(
-			getState(),
-			"Error: Cannot capture screen.",
-			true
-		)
+		console.error("Capture function not provided!")
+		state.uiUpdateCallback(getState(), "Error: Cannot capture screen.", true)
 		return
 	}
+
 	if (!state.anthropicClient) {
-		console.error(
-			"Cannot start monitoring: Anthropic client not available."
-		)
+		console.error("Cannot start monitoring: Anthropic client not available.")
 		state.uiUpdateCallback(getState(), "Error: API client not ready.", true)
 		return
 	}
 
 	console.log("Starting productivity monitoring...")
-	
-	// Reset distraction count when starting monitoring
+
 	state.distractionCount = 0
-	console.log("Distraction count reset to 0")
-	
-	// Reset previous distraction state
 	state.previouslyDistracted = false
-	console.log("Previous distraction state reset")
-	
-	// Reset sprite state if it was dead
-	if (state.spriteState === "dead") {
-		state.spriteState = "alive"
-		console.log("Sprite state reset to alive")
-	}
-	
 	state.isMonitoring = true
-	state.captureScreenshotFn = captureFn // Store for future use
-	
-	// Clear any existing monitoring intervals
+	state.captureScreenshotFn = captureFn
+
 	if (state.monitoringInterval) {
 		clearInterval(state.monitoringInterval)
 		state.monitoringInterval = null
 	}
-	
-	// Also start window change detection if not already running
-	if (!state.windowChangeDetection) {
-		startWindowChangeDetection(captureFn)
+
+	// Ensure window change detection is running
+	if (!state.windowChangeListener) {
+		console.log(
+			"Starting window change detection as part of productivity check"
+		)
+		startWindowChangeDetection()
 	}
 
+	// Do an initial check
 	const check = async () => {
 		try {
-			console.log("Capturing screenshot for check...")
-			const screenshot = await captureFn() // Call the function passed from renderer
+			console.log("Performing regular productivity check")
+			const screenshot = await captureFn()
 			if (screenshot && screenshot.startsWith("data:image/png;base64,")) {
 				const base64Data = screenshot.split(",")[1]
-				
-				// Store hash for window change detection
-				state.lastScreenshotHash = _generateScreenshotHash(base64Data)
-				
-				analyzeScreenAndUpdate(base64Data) // Analyze and update state
+				await analyzeScreenAndUpdate(base64Data)
 			} else {
-				console.error("Invalid screenshot format received.")
+				console.error("Invalid screenshot format received")
 			}
 		} catch (error) {
-			console.error("Error during screenshot capture:", error)
-			state.uiUpdateCallback(getState(), "Error capturing screen.", true)
-			stopProductivityCheck() // Stop if capture fails
+			console.error("Error during productivity check:", error)
+			state.uiUpdateCallback(getState(), "Error during check.", true)
 		}
 	}
 
-	check() // Initial check immediately
+	check()
 	state.monitoringInterval = setInterval(check, MONITORING_INTERVAL_MS)
 	state.uiUpdateCallback(
 		getState(),
@@ -864,14 +850,14 @@ const stopProductivityCheck = () => {
 		clearInterval(state.monitoringInterval)
 		state.monitoringInterval = null
 	}
-	
+
 	// Don't stop window change detection when stopping productivity check
 	// This allows window change detection to continue working independently
 	// If you want to also stop window change detection, uncomment:
 	// if (state.windowChangeDetection) {
 	//     stopWindowChangeDetection();
 	// }
-	
+
 	state.uiUpdateCallback(getState(), "Monitoring stopped.", true)
 }
 
@@ -899,23 +885,27 @@ const getHelpOrChat = async (userQuery) => {
 
 	// Emphasize context more strongly in the system prompt
 	const contextString = state.contextHistory.join("; ") || "None recorded yet"
-	
+
 	// Define personality characteristics for the prompt
-	let personalityPrompt;
-	switch(state.personalityType) {
+	let personalityPrompt
+	switch (state.personalityType) {
 		case "asianMom":
-			personalityPrompt = "You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success.";
-			break;
+			personalityPrompt =
+				"You are an Asian mom character who has high expectations, uses broken English, and constantly compares the user to more successful relatives. You're strict but ultimately care about the user's success."
+			break
 		case "panda":
-			personalityPrompt = "You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted.";
-			break;
+			personalityPrompt =
+				"You are a cute panda character who loves bamboo and speaks in simple, childlike sentences. You're encouraging but get sad when user is distracted."
+			break
 		case "oldMan":
-			personalityPrompt = "You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise.";
-			break;
+			personalityPrompt =
+				"You are a grumpy old man character who constantly talks about 'back in my day' and complains about 'kids these days'. You use old-fashioned expressions and are critical but wise."
+			break
 		default:
-			personalityPrompt = "You are a friendly, motivational productivity assistant with a positive, encouraging tone.";
+			personalityPrompt =
+				"You are a friendly, motivational productivity assistant with a positive, encouraging tone."
 	}
-	
+
 	const systemPrompt = `${personalityPrompt} Your current state is: Mode=${state.currentMode}, Status=${state.spriteState}, Distractions=${state.distractionCount}. The user's recent screen activity context is: [${contextString}]. Respond to the user's query concisely and helpfully (1-2 sentences max), keeping your persona in mind. **If their query seems related to their recent activity, reference that context in your response.** If they are just chatting, be friendly but stay in character.`
 
 	let chatResponseText = "..." // Default or loading message
@@ -928,10 +918,7 @@ const getHelpOrChat = async (userQuery) => {
 			// No tools needed for this simple chat interaction yet
 		})
 
-		console.log(
-			"Chat response from Claude:",
-			JSON.stringify(response, null, 2)
-		)
+		console.log("Chat response from Claude:", JSON.stringify(response, null, 2))
 
 		if (
 			response.content &&

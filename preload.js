@@ -15,11 +15,13 @@ console.log("AppLogic loaded:", !!appLogic)
 
 // Theme handling - will be used to support light/dark mode
 const getSystemTheme = () => {
-    // Check if window.matchMedia is available (it should be in Electron)
-    if (window.matchMedia) {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light'; // Default to light if cannot detect
+	// Check if window.matchMedia is available (it should be in Electron)
+	if (window.matchMedia) {
+		return window.matchMedia("(prefers-color-scheme: dark)").matches
+			? "dark"
+			: "light"
+	}
+	return "light" // Default to light if cannot detect
 }
 
 // Expose protected APIs to renderer
@@ -28,11 +30,10 @@ contextBridge.exposeInMainWorld("electron", {
 		getScreenshot: async () => {
 			try {
 				console.log("Requesting screenshot from main process...")
-				// Ensure the IPC handler 'CAPTURE_SCREEN' exists in main.js
 				return await ipcRenderer.invoke("CAPTURE_SCREEN")
 			} catch (error) {
-				console.error("Screenshot error in preload:", error)
-				throw error // Re-throw for renderer to potentially handle
+				console.error("Screenshot error:", error)
+				throw error
 			}
 		},
 	},
@@ -54,9 +55,19 @@ contextBridge.exposeInMainWorld("electron", {
 		// Personality function
 		setPersonalityType: appLogic.setPersonalityType,
 	},
-    // Theme related functionality
-    theme: {
-        getSystemTheme: getSystemTheme,
-        // Add more theme-related functions as needed
-    }
+	// Theme related functionality
+	theme: {
+		getSystemTheme: getSystemTheme,
+		// Add more theme-related functions as needed
+	},
+	window: {
+		onActiveWindowChange: (callback) => {
+			ipcRenderer.on("active-window-changed", (_, windowInfo) =>
+				callback(windowInfo)
+			)
+		},
+		removeWindowChangeListener: () => {
+			ipcRenderer.removeAllListeners("active-window-changed")
+		},
+	},
 })

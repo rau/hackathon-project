@@ -47,30 +47,42 @@
         .font-retro {
             font-family: 'Press Start 2P', cursive;
         }
+
         .font-arcade {
             font-family: 'VT323', monospace;
         }
+
         /* Ensure transparent background for draggable area */
         body {
-             background-color: rgba(0,0,0,0); /* Make sure body is transparent */
+            background-color: rgba(0, 0, 0, 0);
+            /* Make sure body is transparent */
         }
+
         /* Style for the widget container */
         #widget {
-             -webkit-app-region: drag; /* Allows dragging the widget */
-             user-select: none; /* Prevent text selection */
-             backdrop-filter: blur(8px);
-             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+            -webkit-app-region: drag;
+            /* Allows dragging the widget */
+            user-select: none;
+            /* Prevent text selection */
+            backdrop-filter: blur(8px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
+
         /* Make buttons clickable within draggable region */
         button,
-        input /* Add input to no-drag */ {
-             -webkit-app-region: no-drag;
+        input
+
+        /* Add input to no-drag */
+            {
+            -webkit-app-region: no-drag;
         }
+
         /* Explicitly make speech bubble and chat input non-draggable */
         #speech-bubble,
         #chat-input {
             -webkit-app-region: no-drag;
         }
+
         /* Better font rendering */
         body {
             -webkit-font-smoothing: antialiased;
@@ -81,6 +93,7 @@
         #speech-bubble {
             position: relative;
         }
+
         #speech-bubble:after {
             content: '';
             position: absolute;
@@ -94,51 +107,40 @@
             border-top: 8px solid rgba(255, 255, 255, 0.95);
         }
 
-        /* Style scrollbar for speech bubble */
-        #speech-bubble::-webkit-scrollbar {
-            width: 4px; /* Make scrollbar very thin */
-        }
-        #speech-bubble::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1); /* Semi-transparent track */
-            border-radius: 2px;
-        }
-        #speech-bubble::-webkit-scrollbar-thumb {
-            background-color: rgba(79, 70, 229, 0.5); /* Semi-transparent thumb with primary color */
-            border-radius: 2px;
-        }
-        #speech-bubble::-webkit-scrollbar-thumb:hover {
-            background-color: rgba(79, 70, 229, 0.8);
-        }
-        
         /* Button hover effects */
         .btn {
             transition: all 0.2s ease;
             transform: translateY(0);
         }
+
         .btn:hover {
             transform: translateY(-1px);
         }
+
         .btn:active {
             transform: translateY(1px);
         }
-        
+
         /* Pixel border */
         .pixel-border {
-            box-shadow: 
+            box-shadow:
                 0 0 0 2px #000,
                 inset 0 0 0 1px rgba(255, 255, 255, 0.3);
         }
-        
+
         /* Animated buttons */
         @keyframes pulse-button {
-            0%, 100% { 
+
+            0%,
+            100% {
                 box-shadow: 0 0 0 0 rgba(79, 70, 229, 0.7);
             }
-            50% { 
+
+            50% {
                 box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.3);
             }
         }
-        
+
         .pulse-anim {
             animation: pulse-button 2s infinite;
         }
@@ -147,39 +149,48 @@
 
 <body class="bg-transparent overflow-hidden">
     <!-- Main widget container -->
-    <div id="widget" class="font-retro fixed top-4 right-4 flex flex-col items-center select-none p-3 rounded-xl bg-gradient-to-br from-indigo-900/85 to-purple-900/85 border border-indigo-500/50 hover:border-indigo-400/70 transition-all duration-300"
+    <div id="widget"
+        class="font-retro fixed top-4 right-4 flex flex-col items-center select-none p-3 rounded-xl bg-gradient-to-br from-indigo-900/85 to-purple-900/85 border border-indigo-500/50 hover:border-indigo-400/70 transition-all duration-300"
         tabindex="0" aria-label="Productivity Sprite" role="region">
 
         <!-- Stats Toggle Button (Positioned Above Sprite) -->
-         <button id="stats-toggle-button"
+        <button id="stats-toggle-button"
             class="btn absolute -top-3 left-1/2 transform -translate-x-1/2 translate-y-0 mb-2 bg-primary hover:bg-primary-hover border-2 border-indigo-700 text-white text-[8px] leading-none font-bold py-1 px-3 rounded-lg shadow-lg transition-all pixel-border">
             STATS
         </button>
 
         <!-- Mode Toggle Button (Top Right Corner) -->
         <button id="mode-toggle-button"
-                class="btn absolute top-1 right-1 w-6 h-6 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 pixel-border"
-                title="Switch Mode" aria-label="Switch Mode">
+            class="btn absolute top-1 right-1 w-6 h-6 flex items-center justify-center bg-purple-600 hover:bg-purple-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-purple-400 pixel-border"
+            title="Switch Mode" aria-label="Switch Mode">
             🧘
         </button>
-        
+
         <!-- Personality Toggle Button (Top Left Corner) -->
         <div class="absolute top-1 left-1 z-20">
             <button id="persona-toggle-button"
-                    class="btn w-6 h-6 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
-                    title="Change Personality" aria-label="Change Personality">
+                class="btn w-6 h-6 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white text-xs rounded-md shadow-md transition-all focus:outline-none focus:ring-2 focus:ring-indigo-400 pixel-border"
+                title="Change Personality" aria-label="Change Personality">
                 😀
             </button>
-            
+
             <!-- Personality Quick Selector (pops up when persona button is clicked) -->
-            <div id="persona-dropdown" 
-                 class="absolute left-0 top-7 bg-indigo-950/90 backdrop-blur-sm border border-indigo-500 rounded-md p-2 shadow-xl hidden">
+            <div id="persona-dropdown"
+                class="absolute left-0 top-7 bg-indigo-950/90 backdrop-blur-sm border border-indigo-500 rounded-md p-2 shadow-xl hidden">
                 <div class="text-indigo-300 text-[7px] font-bold mb-1.5">SELECT PERSONALITY:</div>
                 <div class="flex flex-col space-y-1">
-                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="standard">Standard 😊</button>
-                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="asianMom">Asian Mom 👩‍👦</button>
-                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="panda">Panda 🐼</button>
-                    <button class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded" data-persona="oldMan">Old Man 👴</button>
+                    <button
+                        class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-persona="standard">Standard 😊</button>
+                    <button
+                        class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-persona="asianMom">Asian Mom 👩‍👦</button>
+                    <button
+                        class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-persona="panda">Panda 🐼</button>
+                    <button
+                        class="persona-option btn w-full text-left text-[8px] px-2 py-1 bg-indigo-800/80 hover:bg-indigo-700 text-white rounded"
+                        data-persona="oldMan">Old Man 👴</button>
                 </div>
             </div>
         </div>
@@ -187,52 +198,51 @@
         <!-- Stats Display (Positioned Above Sprite, below Stats button) -->
         <div id="stats-display"
             class="absolute top-0 left-0 right-0 mt-5 bg-black bg-opacity-75 text-white text-[7px] leading-tight p-2 rounded-md border border-indigo-500/50 mb-1 z-10 hidden pixel-border">
-            <p class="flex justify-between"><span class="text-indigo-300">MODE:</span> <span id="stats-mode" class="text-yellow-300">PRODUCTIVITY</span></p>
-            <p class="flex justify-between"><span class="text-indigo-300">HITS:</span> <span id="stats-distractions" class="text-yellow-300">0</span></p>
-            <p class="flex justify-between"><span class="text-indigo-300">STATUS:</span> <span id="stats-status" class="text-yellow-300">ALIVE</span></p>
-            
+            <p class="flex justify-between"><span class="text-indigo-300">MODE:</span> <span id="stats-mode"
+                    class="text-yellow-300">PRODUCTIVITY</span></p>
+            <p class="flex justify-between"><span class="text-indigo-300">HITS:</span> <span id="stats-distractions"
+                    class="text-yellow-300">0</span></p>
+            <p class="flex justify-between"><span class="text-indigo-300">STATUS:</span> <span id="stats-status"
+                    class="text-yellow-300">ALIVE</span></p>
+
             <!-- Personality Selector -->
             <div class="flex items-center justify-between my-1.5 pt-1.5 border-t border-indigo-800/70">
                 <span class="text-indigo-300">PERSONA:</span>
-                <select id="personality-select" class="bg-indigo-900 text-[7px] text-yellow-300 border border-indigo-700 rounded px-1 w-24 py-0.5 -webkit-app-region: no-drag">
+                <select id="personality-select"
+                    class="bg-indigo-900 text-[7px] text-yellow-300 border border-indigo-700 rounded px-1 w-24 py-0.5 -webkit-app-region: no-drag">
                     <option value="standard">Standard</option>
                     <option value="asianMom">Asian Mom</option>
                     <option value="panda">Panda</option>
                     <option value="oldMan">Old Man</option>
                 </select>
             </div>
-            
+
             <!-- Tab Detection Toggle -->
             <div class="flex items-center justify-between mt-1.5 pt-1.5 border-t border-indigo-800/70">
                 <span class="text-indigo-300">TAB DETECT:</span>
                 <label class="inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="window-change-toggle" class="sr-only peer" checked>
-                    <div class="relative w-7 h-3 bg-gray-700 rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[-1px] after:left-0 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all"></div>
+                    <div
+                        class="relative w-7 h-3 bg-gray-700 rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[-1px] after:left-0 after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all">
+                    </div>
                 </label>
             </div>
         </div>
 
         <!-- Sprite Area -->
         <div class="relative w-16 h-16 mt-6 mb-3 z-0 animate-float">
-            <img id="sprite-happy"
-                src="https://em-content.zobj.net/source/microsoft-teams/363/smiling-face-with-smiling-eyes_1f60a.png"
-                alt="Happy Sprite" class="w-full h-full object-contain drop-shadow-lg" />
-            <img id="sprite-sad" src="https://em-content.zobj.net/source/microsoft-teams/363/worried-face_1f61f.png"
-                alt="Sad Sprite" class="w-full h-full object-contain drop-shadow-lg hidden" />
-            <!-- Add dead sprite image if you have one -->
-             <!-- <img id="sprite-dead" src="dead-sprite.png" alt="Dead Sprite" class="w-full h-full object-contain hidden grayscale drop-shadow-lg" /> -->
+            <img id="sprite" src="img/panda/happy.png" alt="Panda Sprite"
+                class="w-full h-full object-contain drop-shadow-lg" />
         </div>
 
         <!-- Speech Bubble -->
-        <div id="speech-bubble"
-            class="bg-white bg-opacity-95 text-black rounded-lg px-3 py-2 shadow-xl text-[9px] leading-snug mb-4 min-w-[110px] max-w-[160px] text-center border border-indigo-300 
-                   max-h-[45px] overflow-y-auto pixel-border" 
-            aria-live="polite"></div>
+        <div id="speech-bubble" class="bg-white bg-opacity-95 text-black rounded-lg px-3 py-2 shadow-xl text-[9px] leading-snug mb-4 min-w-[110px] max-w-[160px] text-center border border-indigo-300 
+                   pixel-border" aria-live="polite"></div>
 
         <!-- Task Description Input -->
         <input type="text" id="task-description" placeholder="What are you working on?"
-               class="w-full px-2 py-1.5 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-2.5 shadow-inner"
-               aria-label="Task description" />
+            class="w-full px-2 py-1.5 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent mb-2.5 shadow-inner"
+            aria-label="Task description" />
 
         <!-- Monitoring Button -->
         <button id="start-monitoring"
@@ -241,12 +251,12 @@
 
         <!-- Interaction Area -->
         <div class="mt-2 flex items-center space-x-1.5 w-full">
-            <input type="text" id="chat-input" placeholder="Ask me..." 
-                   class="flex-grow px-2 py-1 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-inner" 
-                   aria-label="Chat input" />
-            <button id="chat-button" 
-                    class="btn px-2 py-1 rounded-md bg-accent hover:bg-accent-hover border-2 border-amber-700 text-black text-[9px] leading-none font-bold shadow-md transition-all focus:outline-none focus:ring-1 focus:ring-amber-300 pixel-border"
-                    aria-label="Send chat message">&gt;</button>
+            <input type="text" id="chat-input" placeholder="Ask me..."
+                class="flex-grow px-2 py-1 text-[9px] leading-none font-arcade bg-indigo-50 text-indigo-900 border-2 border-indigo-300 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent shadow-inner"
+                aria-label="Chat input" />
+            <button id="chat-button"
+                class="btn px-2 py-1 rounded-md bg-accent hover:bg-accent-hover border-2 border-amber-700 text-black text-[9px] leading-none font-bold shadow-md transition-all focus:outline-none focus:ring-1 focus:ring-amber-300 pixel-border"
+                aria-label="Send chat message">&gt;</button>
         </div>
 
     </div>

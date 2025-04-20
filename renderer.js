@@ -2,10 +2,9 @@ const speechBubble = document.getElementById("speech-bubble")
 const speakBtn = document.getElementById("speak-btn")
 const widget = document.getElementById("widget")
 const startMonitoringBtn = document.getElementById("start-monitoring")
-const spriteHappy = document.getElementById("sprite-happy")
-const spriteSad = document.getElementById("sprite-sad")
-const widgetContainer = document.getElementById("widget-container")
 const spriteImage = document.getElementById("sprite")
+const widgetContainer = document.getElementById("widget-container")
+const spriteContainer = document.getElementById("sprite-container")
 
 // New DOM references
 const statsToggleButton = document.getElementById("stats-toggle-button")
@@ -34,24 +33,26 @@ let isMonitoring = false
 
 // Helper function to safely access global state
 const getAppState = () => {
-  try {
-    return window.electron?.logic?.getState ? window.electron.logic.getState() : { 
-      mode: currentMode,
-      distractions: distractionCount,
-      status: spriteState,
-      isMonitoring: isMonitoring,
-      statsVisible: statsVisible
-    };
-  } catch (error) {
-    console.error("Error getting state:", error);
-    return { 
-      mode: "productivity", 
-      distractions: 0, 
-      status: "alive",
-      isMonitoring: false,
-      statsVisible: false
-    };
-  }
+	try {
+		return window.electron?.logic?.getState
+			? window.electron.logic.getState()
+			: {
+					mode: currentMode,
+					distractions: distractionCount,
+					status: spriteState,
+					isMonitoring: isMonitoring,
+					statsVisible: statsVisible,
+			  }
+	} catch (error) {
+		console.error("Error getting state:", error)
+		return {
+			mode: "productivity",
+			distractions: 0,
+			status: "alive",
+			isMonitoring: false,
+			statsVisible: false,
+		}
+	}
 }
 
 // Log that renderer is running
@@ -79,12 +80,6 @@ const deadMessages = [
 	"Productivity zero... sprite zero... 😵",
 ]
 
-const setSpriteEmotion = (isHappy) => {
-	console.log("Setting sprite emotion:", isHappy)
-	spriteHappy.classList.toggle("hidden", !isHappy)
-	spriteSad.classList.toggle("hidden", isHappy)
-}
-
 const updateButtonState = (monitoring) => {
 	console.log("Updating button state:", monitoring)
 	startMonitoringBtn.textContent = monitoring
@@ -95,42 +90,46 @@ const updateButtonState = (monitoring) => {
 }
 
 const analyzeScreenshot = async (screenshot, taskDescription) => {
-	console.log("DEPRECATED: Using local analyzeScreenshot. This function is now handled by logic.js.");
-	
+	console.log(
+		"DEPRECATED: Using local analyzeScreenshot. This function is now handled by logic.js."
+	)
+
 	// Validate inputs first
 	if (!screenshot) {
-		console.error("No screenshot provided for analysis");
-		return false; // Default to not distracting on error
+		console.error("No screenshot provided for analysis")
+		return false // Default to not distracting on error
 	}
-	
+
 	if (!window.electron?.env?.CLAUDE_API_KEY) {
-		console.error("No Claude API key available");
-		return false; // Default to not distracting on error
+		console.error("No Claude API key available")
+		return false // Default to not distracting on error
 	}
-	
+
 	try {
-		console.log("Analyzing screenshot with Claude...");
-		console.log("Task Description:", taskDescription);
+		console.log("Analyzing screenshot with Claude...")
+		console.log("Task Description:", taskDescription)
 
 		// Construct the prompt including the task description
-		let promptText = `The user is currently working on: '${taskDescription || "No specific task provided."}'\n\nHere's a screenshot of the computer screen. Does this screen content seem relevant to the stated task, or is it likely a distraction (like social media, games, unrelated browsing)? Please respond with ONLY 'yes' (relevant) or 'no' (distraction).`;
-        
-        // Prepare screenshot data
-        let screenshotData;
-        try {
-            screenshotData = screenshot.split(",")[1];
-            if (!screenshotData) {
-                throw new Error("Invalid screenshot format");
-            }
-        } catch (screenshotError) {
-            console.error("Error processing screenshot:", screenshotError);
-            return false; // Default to not distracting on error
-        }
+		let promptText = `The user is currently working on: '${
+			taskDescription || "No specific task provided."
+		}'\n\nHere's a screenshot of the computer screen. Does this screen content seem relevant to the stated task, or is it likely a distraction (like social media, games, unrelated browsing)? Please respond with ONLY 'yes' (relevant) or 'no' (distraction).`
+
+		// Prepare screenshot data
+		let screenshotData
+		try {
+			screenshotData = screenshot.split(",")[1]
+			if (!screenshotData) {
+				throw new Error("Invalid screenshot format")
+			}
+		} catch (screenshotError) {
+			console.error("Error processing screenshot:", screenshotError)
+			return false // Default to not distracting on error
+		}
 
 		// Add timeout to prevent hanging requests
-		const controller = new AbortController();
-		const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-		
+		const controller = new AbortController()
+		const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+
 		try {
 			const response = await fetch("https://api.anthropic.com/v1/messages", {
 				method: "POST",
@@ -163,45 +162,54 @@ const analyzeScreenshot = async (screenshot, taskDescription) => {
 					],
 				}),
 				signal: controller.signal,
-			});
-			
-			clearTimeout(timeoutId);
-			
+			})
+
+			clearTimeout(timeoutId)
+
 			// Check for HTTP errors
 			if (!response.ok) {
-				console.error(`API request failed with status ${response.status}`);
-				return false; // Default to not distracting on error
+				console.error(`API request failed with status ${response.status}`)
+				return false // Default to not distracting on error
 			}
 
-			const data = await response.json();
-			console.log("Claude response:", data);
-			
+			const data = await response.json()
+			console.log("Claude response:", data)
+
 			// Validate response format
-			if (!data || !data.content || !Array.isArray(data.content) || data.content.length === 0) {
-				console.error("Invalid response format from Claude API:", data);
-				return false; // Default to not distracting on error
+			if (
+				!data ||
+				!data.content ||
+				!Array.isArray(data.content) ||
+				data.content.length === 0
+			) {
+				console.error("Invalid response format from Claude API:", data)
+				return false // Default to not distracting on error
 			}
-			
+
 			// Improve robustness of checking response
-			const resultText = data.content[0]?.text?.toLowerCase()?.trim() || "";
-			console.log("Parsed result text:", resultText);
-			
+			const resultText = data.content[0]?.text?.toLowerCase()?.trim() || ""
+			console.log("Parsed result text:", resultText)
+
 			// Interpret both 'yes' and variations as productive
-			return resultText === 'yes' || resultText.includes('yes') || resultText.includes('relevant');
+			return (
+				resultText === "yes" ||
+				resultText.includes("yes") ||
+				resultText.includes("relevant")
+			)
 		} catch (fetchError) {
-			clearTimeout(timeoutId);
-			
-			if (fetchError.name === 'AbortError') {
-				console.error("API request timed out after 30 seconds");
+			clearTimeout(timeoutId)
+
+			if (fetchError.name === "AbortError") {
+				console.error("API request timed out after 30 seconds")
 			} else {
-				console.error("Error fetching from Claude API:", fetchError);
+				console.error("Error fetching from Claude API:", fetchError)
 			}
-			
-			return false; // Default to not distracting on fetch error
+
+			return false // Default to not distracting on fetch error
 		}
 	} catch (error) {
-		console.error("Error analyzing screenshot:", error);
-		return false; // Default to not distracting on general error
+		console.error("Error analyzing screenshot:", error)
+		return false // Default to not distracting on general error
 	}
 }
 
@@ -225,8 +233,6 @@ const checkProductivity = async () => {
 		// Pass task description to analyzeScreenshot
 		const isProductive = await analyzeScreenshot(screenshot, taskDescription)
 		console.log("Analysis result:", isProductive)
-
-		setSpriteEmotion(isProductive)
 
 		// Determine message based on productivity AND mode
 		let message = ""
@@ -259,7 +265,6 @@ const checkProductivity = async () => {
 	} catch (error) {
 		console.error("Error during productivity check:", error)
 		speechBubble.textContent = "Oops! Something went wrong! 😅"
-		setSpriteEmotion(true) // Default to happy on error
 	}
 }
 
@@ -281,7 +286,6 @@ const stopMonitoring = () => {
 		clearInterval(monitoringInterval)
 		monitoringInterval = null
 	}
-	setSpriteEmotion(true)
 	speechBubble.textContent =
 		"Taking a break! Let me know when to start again! 😊"
 }
@@ -291,8 +295,7 @@ startMonitoringBtn.addEventListener("click", () => {
 
 	if (!window.electron?.env?.CLAUDE_API_KEY) {
 		console.error("No Claude API key found")
-		speechBubble.textContent =
-			"Please add your Claude API key to .env file! 🔑"
+		speechBubble.textContent = "Please add your Claude API key to .env file! 🔑"
 		return
 	}
 
@@ -308,37 +311,39 @@ startMonitoringBtn.addEventListener("click", () => {
 // --- New UI Update Function ---
 const updateUI = () => {
 	// Always get the latest state from logic module
-	const state = getAppState();
-	
-	console.log("Updating UI with state:", state);
+	const state = getAppState()
+
+	console.log("Updating UI with state:", state)
 
 	// Update Stats Display
-	statsMode.textContent = state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
-	statsDistractions.textContent = state.distractions;
-	statsStatus.textContent = state.status.charAt(0).toUpperCase() + state.status.slice(1);
+	statsMode.textContent =
+		state.mode.charAt(0).toUpperCase() + state.mode.slice(1)
+	statsDistractions.textContent = state.distractions
+	statsStatus.textContent =
+		state.status.charAt(0).toUpperCase() + state.status.slice(1)
 
 	// Toggle Stats Visibility
-	statsDisplay.classList.toggle("hidden", !state.statsVisible);
+	statsDisplay.classList.toggle("hidden", !state.statsVisible)
 
 	// Update Mode Toggle Button Text
-	const isProductivityMode = state.mode === "productivity";
-	modeToggleButton.textContent = isProductivityMode ? "⚙️" : "🧘";
-	modeToggleButton.classList.toggle("bg-green-600", isProductivityMode);
-	modeToggleButton.classList.toggle("hover:bg-green-700", isProductivityMode);
+	const isProductivityMode = state.mode === "productivity"
+	modeToggleButton.textContent = isProductivityMode ? "⚙️" : "🧘"
+	modeToggleButton.classList.toggle("bg-green-600", isProductivityMode)
+	modeToggleButton.classList.toggle("hover:bg-green-700", isProductivityMode)
 	modeToggleButton.setAttribute(
 		"title",
 		isProductivityMode ? "Switch to Relax Mode" : "Switch to Productivity Mode"
-	);
+	)
 
 	// Update Sprite Appearance (Example: grayscale when dead)
-	const isDead = state.status === "dead";
-	spriteImage.classList.toggle("grayscale", isDead);
+	const isDead = state.status === "dead"
+	spriteImage.classList.toggle("grayscale", isDead)
 
 	// Disable buttons if dead
-	statsToggleButton.disabled = isDead;
-	modeToggleButton.disabled = isDead;
+	statsToggleButton.disabled = isDead
+	modeToggleButton.disabled = isDead
 	if (startMonitoringBtn) {
-		startMonitoringBtn.disabled = isDead;
+		startMonitoringBtn.disabled = isDead
 	}
 
 	// Update speech bubble if dead
@@ -348,19 +353,19 @@ const updateUI = () => {
 		speechBubble.textContent !== deadMessages[1] &&
 		speechBubble.textContent !== deadMessages[2]
 	) {
-		const deadMessage = getRandomMessage(deadMessages);
-		speechBubble.textContent = deadMessage;
-		speechBubble.classList.remove("hidden");
-		
+		const deadMessage = getRandomMessage(deadMessages)
+		speechBubble.textContent = deadMessage
+		speechBubble.classList.remove("hidden")
+
 		// Use try-catch for speech synthesis
 		try {
 			if ("speechSynthesis" in window) {
-				const utter = new window.SpeechSynthesisUtterance(deadMessage);
-				window.speechSynthesis.cancel();
-				window.speechSynthesis.speak(utter);
+				const utter = new window.SpeechSynthesisUtterance(deadMessage)
+				window.speechSynthesis.cancel()
+				window.speechSynthesis.speak(utter)
 			}
 		} catch (error) {
-			console.error("Speech synthesis error:", error);
+			console.error("Speech synthesis error:", error)
 		}
 	}
 }
@@ -370,46 +375,48 @@ const updateUI = () => {
 // Kept for backward compatibility but redirected to use logic module
 const handleToggleMode = () => {
 	// Get current state
-	const state = getAppState();
+	const state = getAppState()
 	if (state.status === "dead") return // Cannot change mode if dead
 
 	// Use the logic module's toggleMode function
 	if (window.electron?.logic?.toggleMode) {
 		try {
-			window.electron.logic.toggleMode();
+			window.electron.logic.toggleMode()
 			// Logic module will call updateRendererUI
 		} catch (error) {
-			console.error("Error toggling mode:", error);
+			console.error("Error toggling mode:", error)
 		}
 	} else {
-		console.error("toggleMode function not available in logic module");
+		console.error("toggleMode function not available in logic module")
 		// Fallback to local state if logic module not available
-		currentMode = currentMode === "productivity" ? "relax" : "productivity";
+		currentMode = currentMode === "productivity" ? "relax" : "productivity"
 		if (currentMode === "productivity") {
-			distractionCount = 0;
+			distractionCount = 0
 		}
-		updateUI();
+		updateUI()
 	}
 }
 
 const handleToggleStats = () => {
 	// Get current state
-	const state = getAppState();
-	if (state.status === "dead") return;
+	const state = getAppState()
+	if (state.status === "dead") return
 
 	// Use the logic module's toggleStatsVisibility function
 	if (window.electron?.logic?.toggleStatsVisibility) {
 		try {
-			window.electron.logic.toggleStatsVisibility();
+			window.electron.logic.toggleStatsVisibility()
 			// Logic module will call updateRendererUI
 		} catch (error) {
-			console.error("Error toggling stats visibility:", error);
+			console.error("Error toggling stats visibility:", error)
 		}
 	} else {
-		console.error("toggleStatsVisibility function not available in logic module");
+		console.error(
+			"toggleStatsVisibility function not available in logic module"
+		)
 		// Fallback to local state if logic module not available
-		statsVisible = !statsVisible;
-		updateUI();
+		statsVisible = !statsVisible
+		updateUI()
 	}
 }
 
@@ -417,76 +424,80 @@ const handleToggleStats = () => {
 // DEPRECATED: This function is kept for backward compatibility
 // The logic module now handles this functionality directly
 const handleAnalyzeScreenResult = (isDistracting) => {
-	console.log("DEPRECATED: handleAnalyzeScreenResult called locally. This should be handled by logic module.");
-	
+	console.log(
+		"DEPRECATED: handleAnalyzeScreenResult called locally. This should be handled by logic module."
+	)
+
 	// Get the current state safely
-	const state = getAppState();
-	
+	const state = getAppState()
+
 	if (state.status === "dead" || state.mode !== "productivity") {
-		console.log("Skipping distraction check (dead or not in productivity mode).");
-		return;
+		console.log(
+			"Skipping distraction check (dead or not in productivity mode)."
+		)
+		return
 	}
 
-	console.log("Received analysis result:", { isDistracting });
-	
+	console.log("Received analysis result:", { isDistracting })
+
 	// This function is now deprecated - forward to logic module if available
 	if (window.electron?.logic) {
 		try {
 			// Logic module now handles this internally via analyzeScreenAndUpdate
-			console.log("Forwarding analysis result to logic module...");
+			console.log("Forwarding analysis result to logic module...")
 			// We can't directly call the internal function, but the next scheduled check will handle it
-			return;
+			return
 		} catch (error) {
-			console.error("Error forwarding analysis to logic module:", error);
+			console.error("Error forwarding analysis to logic module:", error)
 			// Fall back to local implementation
 		}
 	}
 
 	// Fallback implementation if logic module not available
-	let message = "";
-	
+	let message = ""
+
 	if (isDistracting) {
-		distractionCount++;
-		console.log("Distraction detected! Count:", distractionCount);
-		message = getRandomMessage(unproductiveMessages);
-		
+		distractionCount++
+		console.log("Distraction detected! Count:", distractionCount)
+		message = getRandomMessage(unproductiveMessages)
+
 		if (distractionCount >= 3) {
-			console.log("Distraction limit reached! Sprite state changing to dead.");
-			spriteState = "dead";
-			message = getRandomMessage(deadMessages);
+			console.log("Distraction limit reached! Sprite state changing to dead.")
+			spriteState = "dead"
+			message = getRandomMessage(deadMessages)
 			if (isMonitoring && window.electron?.logic?.stopProductivityCheck) {
 				try {
-					window.electron.logic.stopProductivityCheck();
+					window.electron.logic.stopProductivityCheck()
 				} catch (error) {
-					console.error("Error stopping monitoring:", error);
+					console.error("Error stopping monitoring:", error)
 					// Fallback to local function
-					if (typeof stopMonitoring === 'function') {
-						stopMonitoring();
+					if (typeof stopMonitoring === "function") {
+						stopMonitoring()
 					}
 				}
 			}
 		}
 	} else {
-		message = getRandomMessage(productiveMessages);
+		message = getRandomMessage(productiveMessages)
 	}
-	
+
 	// Update UI with message
-	speechBubble.textContent = message;
-	speechBubble.classList.remove("hidden");
-	
+	speechBubble.textContent = message
+	speechBubble.classList.remove("hidden")
+
 	// Try speech synthesis with error handling
 	try {
 		if ("speechSynthesis" in window) {
-			const utter = new window.SpeechSynthesisUtterance(message);
-			window.speechSynthesis.cancel();
-			window.speechSynthesis.speak(utter);
+			const utter = new window.SpeechSynthesisUtterance(message)
+			window.speechSynthesis.cancel()
+			window.speechSynthesis.speak(utter)
 		}
 	} catch (speechError) {
-		console.error("Speech synthesis error:", speechError);
+		console.error("Speech synthesis error:", speechError)
 	}
-	
+
 	// Update UI stats
-	updateUI();
+	updateUI()
 }
 
 // --- Event Listeners Setup ---
@@ -529,21 +540,24 @@ personaToggleButton.addEventListener("click", () => {
 
 // Close dropdown when clicking outside of it
 document.addEventListener("click", (event) => {
-	if (!personaToggleButton.contains(event.target) && !personaDropdown.contains(event.target)) {
+	if (
+		!personaToggleButton.contains(event.target) &&
+		!personaDropdown.contains(event.target)
+	) {
 		personaDropdown.classList.add("hidden")
 	}
 })
 
 // Handle persona option selection
-personaOptions.forEach(option => {
+personaOptions.forEach((option) => {
 	option.addEventListener("click", () => {
 		const persona = option.getAttribute("data-persona")
 		console.log("Personality selected:", persona)
-		
+
 		if (window.electron?.logic?.setPersonalityType) {
 			window.electron.logic.setPersonalityType(persona)
 			personaDropdown.classList.add("hidden")
-			
+
 			// Also update the select in stats display
 			if (personalitySelect) {
 				personalitySelect.value = persona
@@ -559,7 +573,7 @@ if (personalitySelect) {
 	personalitySelect.addEventListener("change", () => {
 		const persona = personalitySelect.value
 		console.log("Personality changed via select:", persona)
-		
+
 		if (window.electron?.logic?.setPersonalityType) {
 			window.electron.logic.setPersonalityType(persona)
 		} else {
@@ -573,8 +587,13 @@ windowChangeToggle.addEventListener("change", (event) => {
 	console.log("Window change detection toggle:", event.target.checked)
 	if (window.electron?.logic) {
 		if (event.target.checked) {
-			if (window.electron.logic.startWindowChangeDetection && window.electron.capture) {
-				window.electron.logic.startWindowChangeDetection(window.electron.capture.getScreenshot)
+			if (
+				window.electron.logic.startWindowChangeDetection &&
+				window.electron.capture
+			) {
+				window.electron.logic.startWindowChangeDetection(
+					window.electron.capture.getScreenshot
+				)
 				speechBubble.textContent = "Tab change detection enabled! 🔍"
 				speechBubble.classList.remove("hidden")
 			}
@@ -619,111 +638,75 @@ if (!window.electron || !window.electron.logic || !window.electron.capture) {
 // --- UI Update Function ---
 // This function is called by logic.js via the callback
 const updateRendererUI = (newState, message, speakMessage = false) => {
-	console.log("Updating Renderer UI:", {
-		state: newState,
+	console.log(
+		"Updating UI with new state:",
+		newState,
+		"Message:",
 		message,
-		speakMessage,
-	})
-
-	// Update Stats Display
-	statsMode.textContent =
-		newState.mode.charAt(0).toUpperCase() + newState.mode.slice(1)
-	statsDistractions.textContent = newState.distractions
-	statsStatus.textContent =
-		newState.status.charAt(0).toUpperCase() + newState.status.slice(1)
-
-	// Toggle Stats Visibility (using state from logic)
-	statsDisplay.classList.toggle("hidden", !newState.statsVisible)
-
-	// Update Mode Toggle Button Icon & Style
-	const isProductivityMode = newState.mode === "productivity"
-	modeToggleButton.textContent = isProductivityMode ? "⚙️" : "🧘" // Set icon based on mode
-	modeToggleButton.classList.toggle("bg-green-600", isProductivityMode)
-	modeToggleButton.classList.toggle("hover:bg-green-700", isProductivityMode)
-	modeToggleButton.classList.toggle("bg-purple-600", !isProductivityMode)
-	modeToggleButton.classList.toggle(
-		"hover:bg-purple-700",
-		!isProductivityMode
+		"Speak:",
+		speakMessage
 	)
-	modeToggleButton.setAttribute(
-		"title",
-		isProductivityMode
-			? "Switch to Relax Mode"
-			: "Switch to Productivity Mode"
-	) // Update title
 
-	// Update Personality UI if available
-	if (newState.personalityType) {
-		// Update personality dropdown select if it exists
-		const personalitySelect = document.getElementById("personality-select")
-		if (personalitySelect && personalitySelect.value !== newState.personalityType) {
-			personalitySelect.value = newState.personalityType
-		}
-		
-		// Update persona toggle button icon based on personality
-		const personaToggleButton = document.getElementById("persona-toggle-button")
-		if (personaToggleButton) {
-			switch(newState.personalityType) {
-				case "asianMom":
-					personaToggleButton.textContent = "👩‍👦"
-					break
-				case "panda":
-					personaToggleButton.textContent = "🐼"
-					break
-				case "oldMan":
-					personaToggleButton.textContent = "👴"
-					break
-				default: // standard
-					personaToggleButton.textContent = "😀"
-			}
-		}
+	// Update sprite based on emotion
+	if (newState.currentEmotion) {
+		updateSpriteDisplay(newState.currentEmotion)
 	}
 
-	// Update Sprite Appearance
-	const isDead = newState.status === "dead"
-	const isHappy = !isDead // Simplistic: happy unless dead. Adjust if needed.
-	spriteHappy?.classList.toggle("hidden", !isHappy)
-	spriteSad?.classList.toggle("hidden", isHappy)
-	// If using a single sprite image with grayscale:
-	// spriteImage?.classList.toggle("grayscale", isDead)
-
-	// Update Speech Bubble
-	if (message) {
-		speechBubble.textContent = message
-		speechBubble.classList.remove("hidden")
-		// Optional: Text-to-speech ONLY if flag is true
-		if (speakMessage && "speechSynthesis" in window && message) {
-			const utter = new window.SpeechSynthesisUtterance(message)
-			window.speechSynthesis.cancel() // Cancel previous speech
-			window.speechSynthesis.speak(utter)
-			console.log("Speaking message:", message)
-		}
+	// Update stats display
+	if (statsDisplay) {
+		statsMode.textContent = `${
+			newState.mode.charAt(0).toUpperCase() + newState.mode.slice(1)
+		}`
+		statsDistractions.textContent = `${newState.distractions}`
+		statsStatus.textContent = `${
+			newState.status.charAt(0).toUpperCase() + newState.status.slice(1)
+		}`
+		statsDisplay.classList.toggle("hidden", !newState.statsVisible)
 	}
 
-	// Disable/Enable buttons based on state
-	const buttonsDisabled = isDead
-	statsToggleButton.disabled = buttonsDisabled
-	modeToggleButton.disabled = buttonsDisabled
-	// Handle original monitoring button if kept
+	// Update monitoring button state
 	if (startMonitoringBtn) {
-		startMonitoringBtn.disabled = buttonsDisabled
-		// Update original monitoring button text based on logic state
 		startMonitoringBtn.textContent = newState.isMonitoring
 			? "Stop Monitoring"
 			: "Start Monitoring"
 		startMonitoringBtn.classList.toggle("bg-red-500", newState.isMonitoring)
-		startMonitoringBtn.classList.toggle(
-			"hover:bg-red-700",
-			newState.isMonitoring
+		startMonitoringBtn.classList.toggle("bg-green-500", !newState.isMonitoring)
+	}
+
+	// Update mode toggle button
+	if (modeToggleButton) {
+		modeToggleButton.textContent =
+			newState.mode === "productivity" ? "⚙️" : "🧘"
+		modeToggleButton.classList.toggle(
+			"bg-green-600",
+			newState.mode === "productivity"
 		)
-		startMonitoringBtn.classList.toggle(
-			"bg-green-500",
-			!newState.isMonitoring
+		modeToggleButton.classList.toggle(
+			"hover:bg-green-700",
+			newState.mode === "productivity"
 		)
-		startMonitoringBtn.classList.toggle(
-			"hover:bg-green-600",
-			!newState.isMonitoring
-		)
+	}
+
+	// Display message and handle speech synthesis
+	if (message && speechBubble) {
+		speechBubble.textContent = message
+		speechBubble.classList.remove("hidden")
+
+		// Handle speech synthesis
+		if (speakMessage && "speechSynthesis" in window) {
+			console.log("Speaking message:", message)
+			// Cancel any ongoing speech
+			window.speechSynthesis.cancel()
+
+			// Create and configure new utterance
+			const utterance = new SpeechSynthesisUtterance(message)
+			utterance.rate = 1.0
+			utterance.pitch = 1.0
+			utterance.volume = 1.0
+
+			// Speak the message
+			window.speechSynthesis.speak(utterance)
+		}
 	}
 }
 
@@ -790,11 +773,7 @@ if (startMonitoringBtn) {
 				console.error(
 					"logic.startProductivityCheck or capture.getScreenshot not available!"
 				)
-				updateRendererUI(
-					currentState,
-					"Error: Cannot start monitoring.",
-					true
-				)
+				updateRendererUI(currentState, "Error: Cannot start monitoring.", true)
 			}
 		}
 	})
@@ -802,60 +781,64 @@ if (startMonitoringBtn) {
 
 // --- Single Unified Initialization ---
 // Consolidated initialization to prevent issues with multiple event listeners
-let initialized = false;
+let initialized = false
 
 document.addEventListener("DOMContentLoaded", () => {
 	// Prevent duplicate initialization
 	if (initialized) {
-		console.warn("DOMContentLoaded called multiple times - ignoring");
-		return;
+		console.warn("DOMContentLoaded called multiple times - ignoring")
+		return
 	}
-	
-	initialized = true;
-	console.log("DOM loaded. Initializing application...");
-	
+
+	initialized = true
+	console.log("DOM loaded. Initializing application...")
+
 	try {
 		// Initialize the logic module first if available
-		if (window.electron?.logic?.initialize && window.electron?.env && window.electron?.capture) {
-			console.log("Initializing logic module...");
-			
+		if (
+			window.electron?.logic?.initialize &&
+			window.electron?.env &&
+			window.electron?.capture
+		) {
+			console.log("Initializing logic module...")
+
 			try {
 				window.electron.logic.initialize(
 					updateRendererUI,
 					window.electron.env.CLAUDE_API_KEY,
 					window.electron.capture.getScreenshot // Pass the screenshot function for window change detection
-				);
-				console.log("Logic module initialized successfully");
-				
+				)
+				console.log("Logic module initialized successfully")
+
 				// Initial message is set by the callback in initialize
 			} catch (initError) {
-				console.error("Error initializing logic module:", initError);
-				speechBubble.textContent = "Logic initialization failed!";
-				speechBubble.classList.remove("hidden");
+				console.error("Error initializing logic module:", initError)
+				speechBubble.textContent = "Logic initialization failed!"
+				speechBubble.classList.remove("hidden")
 			}
 		} else {
-			console.error("Required modules not available:", { 
-				logic: !!window.electron?.logic, 
-				env: !!window.electron?.env, 
-				capture: !!window.electron?.capture 
-			});
-			
+			console.error("Required modules not available:", {
+				logic: !!window.electron?.logic,
+				env: !!window.electron?.env,
+				capture: !!window.electron?.capture,
+			})
+
 			// Fallback to local initialization if logic module not available
-			speechBubble.textContent = "Welcome! Ready for Productivity mode? ✨";
-			speechBubble.classList.remove("hidden");
-			updateButtonState(false); // Initialize button state
-			updateUI(); // Update UI with local state
+			speechBubble.textContent = "Welcome! Ready for Productivity mode? ✨"
+			speechBubble.classList.remove("hidden")
+			updateButtonState(false) // Initialize button state
+			updateUI() // Update UI with local state
 		}
-		
+
 		// Always apply these UI settings regardless of initialization method
-		const state = getAppState();
-		statsDisplay.classList.toggle("hidden", !state.statsVisible);
-		
-		console.log("Initialization complete");
+		const state = getAppState()
+		statsDisplay.classList.toggle("hidden", !state.statsVisible)
+
+		console.log("Initialization complete")
 	} catch (error) {
-		console.error("Critical error during initialization:", error);
-		speechBubble.textContent = "Critical initialization error!";
-		speechBubble.classList.remove("hidden");
+		console.error("Critical error during initialization:", error)
+		speechBubble.textContent = "Critical initialization error!"
+		speechBubble.classList.remove("hidden")
 	}
 })
 
@@ -892,11 +875,7 @@ chatButton.addEventListener("click", async () => {
 			const currentState = window.electron?.logic?.getState
 				? window.electron.logic.getState()
 				: {}
-			updateRendererUI(
-				currentState,
-				"Sorry, couldn't get a response.",
-				true
-			)
+			updateRendererUI(currentState, "Sorry, couldn't get a response.", true)
 		}
 	} else {
 		console.error("logic.getHelpOrChat not available!")
@@ -914,3 +893,18 @@ chatInput.addEventListener("keydown", (event) => {
 		chatButton.click() // Trigger the button click handler
 	}
 })
+
+// Update sprite display function
+const updateSpriteDisplay = (emotion) => {
+	console.log("Updating sprite display for emotion:", emotion)
+	if (!spriteImage) {
+		console.error("Sprite image element not found!")
+		return
+	}
+	try {
+		spriteImage.src = `img/panda/${emotion}.png`
+		spriteImage.alt = `Panda ${emotion}`
+	} catch (error) {
+		console.error("Error updating sprite image:", error)
+	}
+}

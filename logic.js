@@ -445,23 +445,61 @@ const toggleStatsVisibility = () => {
 
 // Helper function to calculate Hamming distance between two hex strings (perceptual hashes)
 const _calculateHashDistance = (hash1, hash2) => {
-    if (!hash1 || !hash2 || hash1.length !== hash2.length) {
-        return Number.MAX_SAFE_INTEGER; // Return max distance if hashes can't be compared
-    }
-    
-    // Convert hex strings to binary
-    const bin1 = Array.from(hash1).map(h => parseInt(h, 16).toString(2).padStart(4, '0')).join('');
-    const bin2 = Array.from(hash2).map(h => parseInt(h, 16).toString(2).padStart(4, '0')).join('');
-    
-    // Count bit differences (Hamming distance)
-    let distance = 0;
-    for (let i = 0; i < bin1.length; i++) {
-        if (bin1[i] !== bin2[i]) {
-            distance++;
+    try {
+        // Validate inputs
+        if (!hash1 || !hash2) {
+            console.warn("One or both hashes are empty:", { hash1, hash2 });
+            return Number.MAX_SAFE_INTEGER;
         }
+        
+        if (hash1.length !== hash2.length) {
+            console.warn(`Hash length mismatch: ${hash1.length} vs ${hash2.length}`);
+            
+            // Try to normalize lengths for more graceful handling
+            const minLength = Math.min(hash1.length, hash2.length);
+            hash1 = hash1.substring(0, minLength);
+            hash2 = hash2.substring(0, minLength);
+            
+            if (minLength < 4) {
+                return Number.MAX_SAFE_INTEGER; // Too short to compare meaningfully
+            }
+        }
+        
+        // Convert hex strings to binary safely
+        let bin1, bin2;
+        try {
+            bin1 = Array.from(hash1).map(h => {
+                const parsed = parseInt(h, 16);
+                return isNaN(parsed) ? '0000' : parsed.toString(2).padStart(4, '0');
+            }).join('');
+            
+            bin2 = Array.from(hash2).map(h => {
+                const parsed = parseInt(h, 16);
+                return isNaN(parsed) ? '0000' : parsed.toString(2).padStart(4, '0');
+            }).join('');
+        } catch (conversionError) {
+            console.error("Error converting hex to binary:", conversionError);
+            return Number.MAX_SAFE_INTEGER;
+        }
+        
+        // Count bit differences (Hamming distance)
+        let distance = 0;
+        const minLength = Math.min(bin1.length, bin2.length);
+        
+        for (let i = 0; i < minLength; i++) {
+            if (bin1[i] !== bin2[i]) {
+                distance++;
+            }
+        }
+        
+        // Add penalty for length differences
+        distance += Math.abs(bin1.length - bin2.length);
+        
+        return distance;
+    } catch (error) {
+        console.error("Error calculating hash distance:", error);
+        return Number.MAX_SAFE_INTEGER;
     }
-    
-    return distance;
 };
 
 // Function to detect window/tab changes and take screenshots
@@ -523,8 +561,11 @@ const startWindowChangeDetection = (captureFn) => {
 }
 
 const stopWindowChangeDetection = () => {
-	console.log("Stopping window change detection")
-	state.windowChangeDetection = false
+	console.log("Stopping window change detection");
+	state.windowChangeDetection = false;
+	
+	// Ensure we don't leave stale hash data
+	state.lastScreenshotHash = null;
 }
 
 const startProductivityCheck = (captureFn) => {

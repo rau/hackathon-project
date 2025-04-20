@@ -571,7 +571,6 @@ const stopWindowChangeDetection = () => {
 const startProductivityCheck = (captureFn) => {
 	if (
 		state.currentMode !== "productivity" ||
-		state.spriteState === "dead" ||
 		state.isMonitoring
 	) {
 		console.log("Cannot start monitoring:", {
@@ -601,8 +600,25 @@ const startProductivityCheck = (captureFn) => {
 	}
 
 	console.log("Starting productivity monitoring...")
+	
+	// Reset distraction count when starting monitoring
+	state.distractionCount = 0
+	console.log("Distraction count reset to 0")
+	
+	// Reset sprite state if it was dead
+	if (state.spriteState === "dead") {
+		state.spriteState = "alive"
+		console.log("Sprite state reset to alive")
+	}
+	
 	state.isMonitoring = true
 	state.captureScreenshotFn = captureFn // Store for future use
+	
+	// Clear any existing monitoring intervals
+	if (state.monitoringInterval) {
+		clearInterval(state.monitoringInterval)
+		state.monitoringInterval = null
+	}
 	
 	// Also start window change detection if not already running
 	if (!state.windowChangeDetection) {
